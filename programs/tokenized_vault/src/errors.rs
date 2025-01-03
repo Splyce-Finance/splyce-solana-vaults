@@ -70,4 +70,10 @@ pub enum ErrorCode {
 
     #[msg("Account is not whitelisted")]
     NotWhitelisted,
+
+    #[msg("User deposit limit exceeded")]
+    ExceedUserDepositLimit,
+
+    #[msg("Serialization error")]
+    SerializationError,
 }

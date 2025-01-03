@@ -6,9 +6,12 @@ import { SimpleStrategyConfigSchema } from "./schemas";
 import * as borsh from "borsh";
 import {
   METADATA_SEED,
+  provider,
   TOKEN_METADATA_PROGRAM_ID,
+  vaultProgram,
 } from "../integration/setups/globalSetup";
 import * as token from "@solana/spl-token";
+import { assert } from "chai";
 
 export const airdrop = async ({
   connection,
@@ -31,25 +34,30 @@ export const airdrop = async ({
 export const initializeVault = async ({
   vaultProgram,
   underlyingMint,
-  vaultIndex,
   signer,
   vaultConfig,
   sharesConfig,
-  skipInitShares,
 }: {
   vaultProgram: anchor.Program<TokenizedVault>;
   underlyingMint: anchor.web3.PublicKey;
-  vaultIndex: number;
   signer: anchor.web3.Keypair;
   vaultConfig: any;
   sharesConfig: any;
-  skipInitShares?: boolean;
 }) => {
+  const config = web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    vaultProgram.programId
+  )[0];
+
+  let configAccount = await vaultProgram.account.config.fetch(config);
+
+  const nextVaultIndex = configAccount.nextVaultIndex.toNumber();
+
   const vault = anchor.web3.PublicKey.findProgramAddressSync(
     [
       Buffer.from("vault"),
       Buffer.from(
-        new Uint8Array(new BigUint64Array([BigInt(vaultIndex)]).buffer)
+        new Uint8Array(new BigUint64Array([BigInt(nextVaultIndex)]).buffer)
       ),
     ],
     vaultProgram.programId
@@ -79,21 +87,19 @@ export const initializeVault = async ({
     .accounts({
       underlyingMint,
       signer: signer.publicKey,
-      tokenProgram: token.TOKEN_PROGRAM_ID
+      tokenProgram: token.TOKEN_PROGRAM_ID,
     })
     .signers([signer])
     .rpc();
 
-  if (!skipInitShares) {
-    await vaultProgram.methods
-      .initVaultShares(new BN(vaultIndex), sharesConfig)
-      .accounts({
-        metadata: metadataAddress,
-        signer: signer.publicKey,
-      })
-      .signers([signer])
-      .rpc();
-  }
+  await vaultProgram.methods
+    .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+    .accounts({
+      metadata: metadataAddress,
+      signer: signer.publicKey,
+    })
+    .signers([signer])
+    .rpc();
 
   return [vault, sharesMint, metadataAddress, vaultTokenAccount];
 };
@@ -103,20 +109,30 @@ export const initializeSimpleStrategy = async ({
   vault,
   underlyingMint,
   signer,
-  index,
   config,
 }: {
   strategyProgram: anchor.Program<Strategy>;
   vault: anchor.web3.PublicKey;
   underlyingMint: anchor.web3.PublicKey;
   signer: anchor.web3.Keypair;
-  index: number;
   config: any;
 }) => {
+  const globalStrategyConfig = web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    strategyProgram.programId
+  )[0];
+
+  let configAccount = await strategyProgram.account.config.fetch(
+    globalStrategyConfig
+  );
+  const nextStrategyIndex = configAccount.nextStrategyIndex.toNumber();
+
   const strategy = web3.PublicKey.findProgramAddressSync(
     [
       vault.toBuffer(),
-      Buffer.from(new Uint8Array(new BigUint64Array([BigInt(index)]).buffer)),
+      Buffer.from(
+        new Uint8Array(new BigUint64Array([BigInt(nextStrategyIndex)]).buffer)
+      ),
     ],
     strategyProgram.programId
   )[0];
@@ -138,10 +154,159 @@ export const initializeSimpleStrategy = async ({
       vault,
       signer: signer.publicKey,
       underlyingMint,
-      tokenProgram: token.TOKEN_PROGRAM_ID
+      tokenProgram: token.TOKEN_PROGRAM_ID,
     })
     .signers([signer])
     .rpc();
 
   return [strategy, strategyTokenAccount];
 };
+
+export const validateDeposit = async ({
+  userTokenAccount,
+  userTokenAccountAmountExpected,
+  userSharesAccount,
+  userSharesAccountAmountExpected,
+  vaultTokenAccount,
+  vaultTokenAccountAmountExpected,
+  vault,
+  vaultTotalIdleAmountExpected,
+  vaultTotalSharesAmountExpected,
+}: {
+  userTokenAccount: anchor.web3.PublicKey;
+  userTokenAccountAmountExpected: number;
+  userSharesAccount: anchor.web3.PublicKey;
+  userSharesAccountAmountExpected: number;
+  vaultTokenAccount: anchor.web3.PublicKey;
+  vaultTokenAccountAmountExpected: number;
+  vault: anchor.web3.PublicKey;
+  vaultTotalIdleAmountExpected: number;
+  vaultTotalSharesAmountExpected: number;
+}) => {
+  let vaultTokenAccountInfo = await token.getAccount(
+    provider.connection,
+    vaultTokenAccount
+  );
+  assert.strictEqual(
+    vaultTokenAccountInfo.amount.toString(),
+    vaultTokenAccountAmountExpected.toString()
+  );
+
+  let userTokenAccountInfo = await token.getAccount(
+    provider.connection,
+    userTokenAccount
+  );
+  assert.strictEqual(
+    userTokenAccountInfo.amount.toString(),
+    userTokenAccountAmountExpected.toString()
+  );
+
+  let userSharesAccountInfo = await token.getAccount(
+    provider.connection,
+    userSharesAccount
+  );
+  assert.strictEqual(
+    userSharesAccountInfo.amount.toString(),
+    userSharesAccountAmountExpected.toString()
+  );
+
+  const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+  assert.strictEqual(
+    vaultAccount.totalIdle.toString(),
+    vaultTotalIdleAmountExpected.toString()
+  );
+  assert.strictEqual(
+    vaultAccount.totalShares.toString(),
+    vaultTotalSharesAmountExpected.toString()
+  );
+};
+
+export const validateDirectDeposit = async ({
+  userTokenAccount,
+  userTokenAccountAmountExpected,
+  userSharesAccount,
+  userSharesAccountAmountExpected,
+  vaultTokenAccount,
+  vaultTokenAccountAmountExpected,
+  vault,
+  vaultTotalDebtAmountExpected,
+  vaultTotalSharesAmountExpected,
+  strategyTokenAccount,
+  strategyTokenAccountAmountExpected,
+  strategy,
+  strategyCurrentDebtAmountExpected,
+}: {
+  userTokenAccount: anchor.web3.PublicKey;
+  userTokenAccountAmountExpected: number;
+  userSharesAccount: anchor.web3.PublicKey;
+  userSharesAccountAmountExpected: number;
+  vaultTokenAccount: anchor.web3.PublicKey;
+  vaultTokenAccountAmountExpected: number;
+  vault: anchor.web3.PublicKey;
+  vaultTotalDebtAmountExpected: number;
+  vaultTotalSharesAmountExpected: number;
+  strategyTokenAccount: anchor.web3.PublicKey;
+  strategyTokenAccountAmountExpected: number;
+  strategy: anchor.web3.PublicKey;
+  strategyCurrentDebtAmountExpected: number;
+}) => {
+  let userTokenAccountInfo = await token.getAccount(
+    provider.connection,
+    userTokenAccount
+  );
+  assert.strictEqual(
+    userTokenAccountInfo.amount.toString(),
+    userTokenAccountAmountExpected.toString()
+  );
+
+  let userSharesAccountInfo = await token.getAccount(
+    provider.connection,
+    userSharesAccount
+  );
+  assert.strictEqual(
+    userSharesAccountInfo.amount.toString(),
+    userSharesAccountAmountExpected.toString()
+  );
+
+  let vaultTokenAccountInfo = await token.getAccount(
+    provider.connection,
+    vaultTokenAccount
+  );
+  assert.strictEqual(
+    vaultTokenAccountInfo.amount.toString(),
+    vaultTokenAccountAmountExpected.toString()
+  );
+
+  const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+  assert.strictEqual(
+    vaultAccount.totalDebt.toString(),
+    vaultTotalDebtAmountExpected.toString()
+  );
+  assert.strictEqual(
+    vaultAccount.totalShares.toString(),
+    vaultTotalSharesAmountExpected.toString()
+  );
+
+  let strategyTokenAccountInfo = await token.getAccount(
+    provider.connection,
+    strategyTokenAccount
+  );
+  assert.strictEqual(
+    strategyTokenAccountInfo.amount.toString(),
+    strategyTokenAccountAmountExpected.toString()
+  );
+
+  const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+    vaultProgram.programId
+  )[0];
+  const strategyDataAccount = await vaultProgram.account.strategyData.fetch(
+    strategyData
+  );
+  assert.strictEqual(
+    strategyDataAccount.currentDebt.toString(),
+    strategyCurrentDebtAmountExpected.toString()
+  );
+};
+
+

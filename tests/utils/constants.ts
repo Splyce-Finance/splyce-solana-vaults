@@ -40,8 +40,24 @@ export const errorStrings = {
     "Error Code: InvalidRoleId. Error Number: 6002. Error Message: Role id is invalid.",
   setRoleAdminMustBeCalledByOwner:
     "Error Code: CannotSetRoleAdmin. Error Number: 6001. Error Message: set_role_admin fn must be called by the owner.",
-  accountExpectedToAlreadyBeIntiialzied:
+  accountExpectedToAlreadyBeInitialized:
     "Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized.",
   kycRequired:
     "Error Code: KYCRequired. Error Number: 6017. Error Message: Only KYC verified users can deposit.",
+  notWhitelisted:
+    "Error Code: NotWhitelisted. Error Number: 6022. Error Message: Account is not whitelisted.",
+  minDepositNotReached:
+    "Error Code: MinDepositNotReached. Error Number: 6009. Error Message: Min deposit not reached.",
+  exceedDepositLimit:
+    "Error Code: ExceedDepositLimit. Error Number: 6010. Error Message: Exceed deposit limit.",
+  zeroValue:
+    "Error Code: ZeroValue. Error Number: 6001. Error Message: Zero value.",
+  vaultShutdown:
+    "Error Code: VaultShutdown. Error Number: 6000. Error Message: Vault was shutdown.",
+  directDepositDisabled:
+    "Error Code: DirectDepositDisabled. Error Number: 6021. Error Message: Direct deposit is disabled.",
+  maxDepositReached:
+    "Error Code: MaxDepositReached. Error Number: 6005. Error Message: Max deposit reached.",
+  debtHigherThanMaxDebt:
+    "Error Code: DebtHigherThanMaxDebt. Error Number: 6007. Error Message: Debt cannot be higher than max debt.",
 };

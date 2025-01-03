@@ -10,4 +10,7 @@ pub enum ErrorCode {
 
     #[msg("Serialization error")]
     SerializationError,
+
+    #[msg("Fee is invalid")]
+    InvalidFee,
 }

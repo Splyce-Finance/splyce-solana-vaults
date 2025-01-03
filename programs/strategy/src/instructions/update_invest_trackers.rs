@@ -160,7 +160,7 @@ pub fn handle_update_invest_trackers(ctx: Context<UpdateInvestTrackers>) -> Resu
             tx_realized_loss_accumulated: current_data.tx_realized_loss_accumulated as u64,
             timestamp: Clock::get()?.unix_timestamp,
         });
-
+      
         // Serialize the updated data
         let serialized = current_data.try_to_vec()?;
 

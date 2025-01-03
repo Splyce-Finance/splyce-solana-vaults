@@ -151,11 +151,14 @@ pub fn handle_init_vault_shares(ctx: Context<InitVaultShares>, _index: u64, conf
     emit!(VaultInitEvent {
         vault_key,
         underlying_token,
+        accountant: vault.accountant,
         share_token,
         deposit_limit: vault.deposit_limit,
         min_user_deposit: vault.min_user_deposit,
-        // todo: add actual performance_fee from accountant or remove it
-        performance_fee: 0,
+        kyc_verified_only: vault.kyc_verified_only,
+        direct_deposit_enabled: vault.direct_deposit_enabled,
+        whitelisted_only: vault.whitelisted_only,
+        profit_max_unlock_time: vault.profit_max_unlock_time,
     });
 
     Ok(())

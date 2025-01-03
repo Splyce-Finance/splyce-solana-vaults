@@ -5,7 +5,7 @@ pub const UNDERLYING_SEED: &str = "underlying";
 pub const ROLES_SEED: &str = "roles";
 pub const CONFIG_SEED: &str = "config";
 pub const STRATEGY_DATA_SEED: &str = "strategy_data";
-pub const WHITELISTED_SEED: &str = "whitelisted";
+pub const USER_DATA_SEED: &str = "user_data";
 
 pub const MAX_BPS: u64 = 10_000;
 pub const FEE_BPS: u64 = 10_000;

@@ -42,8 +42,7 @@ pub mod tokenized_vault {
         max_loss: u64,
         remaining_accounts_map: AccountsMap
     ) -> Result<()> {
-        let shares = ctx.accounts.vault.load()?.convert_to_shares(amount);
-        handle_withdraw(ctx, amount, shares, max_loss, remaining_accounts_map)
+        handle_withdraw(ctx, amount, max_loss, remaining_accounts_map)
     }
     
     pub fn redeem<'info>(
@@ -52,8 +51,7 @@ pub mod tokenized_vault {
         max_loss: u64,
         remaining_accounts_map: AccountsMap
     ) -> Result<()> {
-        let amount = ctx.accounts.vault.load()?.convert_to_underlying(shares);
-        handle_withdraw(ctx, amount, shares, max_loss, remaining_accounts_map)
+        handle_redeem(ctx, shares, max_loss, remaining_accounts_map)
     }
 
     pub fn add_strategy(ctx: Context<AddStrategy>, max_debt: u64) -> Result<()> {

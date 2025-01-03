@@ -5,23 +5,23 @@ use access_control::{
     state::{UserRole, Role}
 };
 
-use crate::constants::WHITELISTED_SEED;
-use crate::state::{Vault, Whitelisted};
+use crate::constants::USER_DATA_SEED;
+use crate::state::{Vault, UserData};
+use crate::events::WhitelistUpdatedEvent;
 
 #[derive(Accounts)]
 #[instruction(user: Pubkey)]
 pub struct RevokeWhitelisting<'info> {
     #[account(
         mut,
-        close = recipient, 
         seeds = [
-            WHITELISTED_SEED.as_bytes(), 
+            USER_DATA_SEED.as_bytes(), 
             vault.key().as_ref(), 
             user.as_ref()
         ], 
         bump,  
     )]
-    pub whitelisted: Account<'info, Whitelisted>,
+    pub user_data: Account<'info, UserData>,
 
     #[account(mut)]
     pub vault: AccountLoader<'info, Vault>,
@@ -40,16 +40,18 @@ pub struct RevokeWhitelisting<'info> {
     #[account(mut, constraint = roles.check_role()?)]
     pub signer: Signer<'info>,
 
-    /// CHECK:
-    #[account(mut)]
-    pub recipient: UncheckedAccount<'info>,
-    
     pub access_control: Program<'info, AccessControl>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 }
 
+pub fn handle_revoke_whitelisting(ctx: Context<RevokeWhitelisting>, _user: Pubkey) -> Result<()> {
+    ctx.accounts.user_data.whitelisted = false;
 
-pub fn handle_revoke_whitelisting(_ctx: Context<RevokeWhitelisting>, _user: Pubkey) -> Result<()> {
+    emit!(WhitelistUpdatedEvent {
+        user: _user,
+        whitelisted: false,
+    });
+
     Ok(())
 }

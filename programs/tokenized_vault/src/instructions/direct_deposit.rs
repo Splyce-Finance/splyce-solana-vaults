@@ -1,26 +1,37 @@
 use access_control::{
     constants::USER_ROLE_SEED,
     program::AccessControl,
-    state::Role
+    state::{Role, UserRole}
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token::Token,
-    token_interface::{Mint, TokenAccount},
+    token_interface::{Mint, TokenAccount, TokenInterface},
 };
 use strategy::program::Strategy;
 
-use crate::constants::{SHARES_SEED, STRATEGY_DATA_SEED, UNDERLYING_SEED, WHITELISTED_SEED, ONE_SHARE_TOKEN};
+use crate::constants::{SHARES_SEED, STRATEGY_DATA_SEED, UNDERLYING_SEED, ONE_SHARE_TOKEN, USER_DATA_SEED};
 
+use crate::errors::ErrorCode;
 use crate::events::{VaultDepositEvent, UpdatedCurrentDebtForStrategyEvent};
-use crate::state::{Vault, StrategyData};
-use crate::utils::{token, vault};
-use crate::utils::strategy as strategy_utils;
+use crate::state::{UserData, Vault, StrategyData};
+use crate::utils::{accountant, strategy as strategy_utils, token, vault};
 
 #[derive(Accounts)]
 pub struct DirectDeposit<'info> {
     #[account(mut)]
     pub vault: AccountLoader<'info, Vault>,
+
+    /// CHECK: 
+    #[account(mut, address = vault.load()?.accountant)]
+    pub accountant: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = shares_mint, 
+        associated_token::authority = accountant,
+    )]
+    pub accountant_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
@@ -53,6 +64,19 @@ pub struct DirectDeposit<'info> {
     pub strategy_data: Account<'info, StrategyData>,
 
     #[account(
+        init_if_needed, 
+        payer = user,
+        space = UserData::LEN,
+        seeds = [
+            USER_DATA_SEED.as_bytes(), 
+            vault.key().as_ref(), 
+            user.key().as_ref()
+            ], 
+            bump
+        )]
+    pub user_data: Account<'info, UserData>,
+
+    #[account(
         mut, 
         seeds = [UNDERLYING_SEED.as_bytes(), strategy.key().as_ref()],
         bump,
@@ -72,35 +96,39 @@ pub struct DirectDeposit<'info> {
     )]
     pub kyc_verified: UncheckedAccount<'info>,
 
-    /// CHECK: this account may not exist
-    #[account(
-        seeds = [
-            WHITELISTED_SEED.as_bytes(), 
-            vault.key().as_ref(),
-            user.key().as_ref(),
-        ], 
-        bump,
-    )]
-    pub whitelisted: UncheckedAccount<'info>,
-        
     #[account(mut)]
     pub user: Signer<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub shares_token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub access_control: Program<'info, AccessControl>,
     pub strategy_program: Program<'info, Strategy>,
 }
 
 pub fn handle_direct_deposit<'info>(ctx: Context<'_, '_, '_, 'info, DirectDeposit<'info>>, amount: u64) -> Result<()> {
+    let enter_fee = accountant::enter(&ctx.accounts.accountant, amount)?;
+    let amount_to_deposit = amount - enter_fee;
+
     vault::validate_deposit(
         &ctx.accounts.vault, 
-        ctx.accounts.kyc_verified.to_account_info(),
-        ctx.accounts.whitelisted.to_account_info(),
+        &ctx.accounts.kyc_verified,
+        &ctx.accounts.user_data,
         true,
-        amount
+        amount_to_deposit
     )?;
 
-    let shares = ctx.accounts.vault.load()?.convert_to_shares(amount);
+    let new_debt = ctx.accounts.strategy_data.current_debt + amount;
+    if new_debt > ctx.accounts.strategy_data.max_debt {
+        return Err(ErrorCode::DebtHigherThanMaxDebt.into());
+    }
+
+    let max_strategy_deposit = strategy_utils::get_max_deposit(&ctx.accounts.strategy.to_account_info())?;
+    if amount > max_strategy_deposit {
+        return Err(ErrorCode::ExceedDepositLimit.into());
+    }
+
+    let mut shares = ctx.accounts.vault.load()?.convert_to_shares(amount_to_deposit);
 
     token::transfer(
         ctx.accounts.token_program.to_account_info(),
@@ -135,11 +163,25 @@ pub fn handle_direct_deposit<'info>(ctx: Context<'_, '_, '_, 'info, DirectDeposi
         &ctx.accounts.vault.load()?.seeds_shares(),
     )?;
 
+    if enter_fee > 0 {
+        let fee_shares = ctx.accounts.vault.load()?.convert_to_shares(enter_fee);
+        shares += fee_shares;
+        token::mint_to(
+            ctx.accounts.shares_token_program.to_account_info(),
+            ctx.accounts.shares_mint.to_account_info(),
+            ctx.accounts.accountant_recipient.to_account_info(),
+            ctx.accounts.shares_mint.to_account_info(),
+            fee_shares,
+            &ctx.accounts.vault.load()?.seeds_shares(),
+        )?;
+    }
+
     let mut vault = ctx.accounts.vault.load_mut()?;
 
     ctx.accounts.strategy_data.increase_current_debt(amount)?;
 
     vault.handle_direct_deposit(amount, shares);
+    ctx.accounts.user_data.deposited += amount;
 
     let share_price = vault.convert_to_underlying(ONE_SHARE_TOKEN);
 

@@ -296,7 +296,7 @@ describe("tokenized_vault", () => {
 
       console.log("Accountant inited");
 
-    await accountantProgram.methods.setFee(new BN(500))
+    await accountantProgram.methods.setPerformanceFee(new BN(500))
       .accounts({
         accountant: accountant,
         signer: admin.publicKey,
@@ -318,6 +318,8 @@ describe("tokenized_vault", () => {
       profitMaxUnlockTime: new BN(0),
       kycVerifiedOnly: true,
       directDepositEnabled: true,
+      whitelistedOnly: true,
+      userDepositLimit: new BN(100000), 
     };
 
     const sharesConfig = {
@@ -382,7 +384,7 @@ describe("tokenized_vault", () => {
       .accounts({
         accountant: accountant,
         signer: admin.publicKey,
-        underlyingMint: sharesMint,
+        mint: sharesMint,
       }) 
       .signers([admin])
       .rpc();
@@ -391,7 +393,7 @@ describe("tokenized_vault", () => {
       .accounts({
         accountant: accountant,
         signer: admin.publicKey,
-        underlyingMint: underlyingMint,
+        mint: underlyingMint,
       }) 
       .signers([admin])
       .rpc();
@@ -536,10 +538,31 @@ describe("tokenized_vault", () => {
       accessControlProgram.programId,
     )[0];
 
+    await vaultProgram.methods.whitelist(user.publicKey)
+      .accounts({
+        vault,
+        signer: admin.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+
+    let user_data_addr = web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("user_data"),
+        vault.toBuffer(),
+        user.publicKey.toBuffer(),
+      ],
+      vaultProgram.programId
+    )[0];
+
+    let user_data = await vaultProgram.account.userData.fetch(user_data_addr);
+    console.log("deposited: ", user_data.deposited.toString());
+
     await vaultProgram.methods.deposit(new BN(100))
       .accounts({
         vault,
         underlyingMint,
+        accountant,
         // strategy,
         user: user.publicKey,
         userTokenAccount,
@@ -552,8 +575,67 @@ describe("tokenized_vault", () => {
       ])
       .rpc();
 
+      user_data = await vaultProgram.account.userData.fetch(user_data_addr);
+    console.log("deposited: ", user_data.deposited.toString());
+
+      const remainingAccountsMap = {
+        accountsMap: [
+          {
+            strategyAcc: new BN(0),
+            strategyTokenAccount: new BN(1),
+            strategyData: new BN(2),
+            remainingAccounts: [new BN(0)],
+          }]
+      };
+
     const vaultAccount = await vaultProgram.account.vault.fetch(vault);
     console.log("Vault balance after deposit:", vaultAccount.totalDebt.toString());
+
+    const strategyData = web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+      vaultProgram.programId,
+    )[0];
+
+    await vaultProgram.methods.redeem(new BN(1), new BN(10000), remainingAccountsMap)
+      .accounts({
+        vault,
+        accountant,
+        user: user.publicKey,
+        underlyingMint,
+        userTokenAccount,
+        userSharesAccount,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .remainingAccounts([
+        { pubkey: strategy, isWritable: true, isSigner: false },
+        { pubkey: strategyTokenAccount, isWritable: true, isSigner: false },
+        { pubkey: strategyData, isWritable: true, isSigner: false },
+      ])
+      .signers([user])
+      .rpc();
+
+      user_data = await vaultProgram.account.userData.fetch(user_data_addr);
+    console.log("deposited: ", user_data.deposited.toString());
+
+    await vaultProgram.methods.deposit(new BN(1))
+      .accounts({
+        vault,
+        underlyingMint,
+        accountant,
+        // strategy,
+        user: user.publicKey,
+        userTokenAccount,
+        userSharesAccount,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .signers([user])
+      .remainingAccounts([
+        { pubkey: kycVerified, isWritable: false, isSigner: false },
+      ])
+      .rpc();
+
+      user_data = await vaultProgram.account.userData.fetch(user_data_addr);
+    console.log("deposited: ", user_data.deposited.toString());
 
     // Fetch the vault token account balance to verify the deposit
     let vaultTokenAccountInfo = await token.getAccount(provider.connection, vaultTokenAccount);
@@ -732,6 +814,7 @@ describe("tokenized_vault", () => {
     await vaultProgram.methods.redeem(new BN(30), new BN(10000), remainingAccountsMap)
       .accounts({
         vault,
+        accountant,
         underlyingMint,
         user: user.publicKey,
         userTokenAccount,
@@ -827,6 +910,7 @@ describe("tokenized_vault", () => {
     await vaultProgram.methods.redeem(shares, new BN(0), remainingAccountsMap)
       .accounts({
         vault,
+        accountant,
         underlyingMint,
         user: newOwner.publicKey,
         userTokenAccount: newOwnerTokenAccount,
@@ -917,6 +1001,7 @@ describe("tokenized_vault", () => {
       .accounts({
         vault,
         underlyingMint,
+        accountant,
         user: user.publicKey,
         userTokenAccount,
         userSharesAccount,
@@ -960,6 +1045,7 @@ describe("tokenized_vault", () => {
       .accounts({
         vault,
         underlyingMint,
+        accountant,
         user: feeRecipient.publicKey,
         userTokenAccount: feeRecipientTokenAccount,
         userSharesAccount: feeRecipientSharesAccount,
@@ -1105,6 +1191,7 @@ describe("tokenized_vault", () => {
     await vaultProgram.methods.deposit(new BN(100))
       .accounts({
         vault,
+        accountant,
         underlyingMint,
         user: user.publicKey,
         userTokenAccount,

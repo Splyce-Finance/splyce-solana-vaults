@@ -24,6 +24,7 @@ pub struct Vault {
     pub minimum_total_idle: u64,
     pub total_idle: u64,
     pub deposit_limit: u64,
+    pub user_deposit_limit: u64,
     pub min_user_deposit: u64,
     pub strategies_amount: u64,
 
@@ -43,6 +44,7 @@ pub struct Vault {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct VaultConfig {
     pub deposit_limit: u64,
+    pub user_deposit_limit: u64,
     pub min_user_deposit: u64,
     pub accountant: Pubkey,
     pub profit_max_unlock_time: u64,
@@ -95,6 +97,7 @@ impl Vault {
 
         self.accountant = config.accountant;
         self.deposit_limit = config.deposit_limit;
+        self.user_deposit_limit = config.user_deposit_limit;
         self.min_user_deposit = config.min_user_deposit;
         self.profit_max_unlock_time = config.profit_max_unlock_time;
         self.kyc_verified_only = config.kyc_verified_only;

@@ -1,13 +1,14 @@
+use access_control::state::UserRole;
 use anchor_lang::prelude::*;
-use access_control::utils::UserRoleAccInfo;
 
 use crate::errors::ErrorCode;
-use crate::state::{Vault, WhitelistedAccInfo};
+use crate::state::{UserData, Vault};
+use crate::utils::unchecked::*;
 
 pub fn validate_deposit<'info>(
     vault_loader: &AccountLoader<'info, Vault>,
-    kyc_verified: AccountInfo<'info>,
-    whitelisted: AccountInfo<'info>,
+    kyc_verified: &AccountInfo<'info>,
+    user_data: &Account<'info, UserData>,
     is_direct: bool,
     amount: u64
 ) -> Result<()> {
@@ -25,6 +26,10 @@ pub fn validate_deposit<'info>(
         return Err(ErrorCode::DirectDepositDisabled.into());
     }
 
+    if vault.user_deposit_limit > 0 && user_data.deposited + amount > vault.user_deposit_limit {
+        return Err(ErrorCode::ExceedUserDepositLimit.into());
+    }
+
     if amount < vault.min_user_deposit {
         return Err(ErrorCode::MinDepositNotReached.into());
     }
@@ -34,11 +39,13 @@ pub fn validate_deposit<'info>(
         return Err(ErrorCode::ExceedDepositLimit.into());
     }
 
-    if vault.kyc_verified_only && !kyc_verified.has_role() {
-        return Err(ErrorCode::KYCRequired.into());
+    if vault.kyc_verified_only {
+        if kyc_verified.data_is_empty() || !kyc_verified.deserialize::<UserRole>()?.has_role {
+            return Err(ErrorCode::KYCRequired.into());
+        }
     }
 
-    if vault.whitelisted_only && !whitelisted.is_whitelisted() {
+    if vault.whitelisted_only && !user_data.whitelisted {
         return Err(ErrorCode::NotWhitelisted.into());
     }
 

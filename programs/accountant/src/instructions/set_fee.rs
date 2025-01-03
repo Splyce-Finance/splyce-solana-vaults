@@ -5,6 +5,7 @@ use access_control::{
     state::{UserRole, Role}
 };
 
+use crate::events::{EntryFeeUpdatedEvent, PerformanceFeeUpdatedEvent, RedemptionFeeUpdatedEvent};
 use crate::utils::unchecked_accountant::UncheckedAccountant;
 
 #[derive(Accounts)]
@@ -30,12 +31,55 @@ pub struct SetFee<'info> {
     pub access_control: Program<'info, AccessControl>
 }
 
-pub fn handle_set_fee(
+pub fn handle_set_performance_fee(
     ctx: Context<SetFee>, 
     fee: u64,
 ) -> Result<()> {
     let accountant = &mut ctx.accounts.accountant.from_unchecked()?;
 
-    accountant.set_fee(fee)?;
-    accountant.save_changes(&mut &mut ctx.accounts.accountant.try_borrow_mut_data()?[8..])
+    accountant.set_performance_fee(fee)?;
+    accountant.save_changes(&mut &mut ctx.accounts.accountant.try_borrow_mut_data()?[8..])?;
+
+    emit!(PerformanceFeeUpdatedEvent {
+        accountant_key: ctx.accounts.accountant.key(),
+        performance_fee: fee,
+    });
+
+    Ok(())
 }
+
+
+pub fn handle_set_entry_fee(
+    ctx: Context<SetFee>, 
+    fee: u64,
+) -> Result<()> {
+    let accountant = &mut ctx.accounts.accountant.from_unchecked()?;
+
+    accountant.set_entry_fee(fee)?;
+    accountant.save_changes(&mut &mut ctx.accounts.accountant.try_borrow_mut_data()?[8..])?;
+
+    emit!(EntryFeeUpdatedEvent {
+        accountant_key: ctx.accounts.accountant.key(),
+        entry_fee: fee,
+    });
+
+    Ok(())
+}
+
+pub fn handle_set_redemption_fee(
+    ctx: Context<SetFee>, 
+    fee: u64,
+) -> Result<()> {
+    let accountant = &mut ctx.accounts.accountant.from_unchecked()?;
+
+    accountant.set_redemption_fee(fee)?;
+    accountant.save_changes(&mut &mut ctx.accounts.accountant.try_borrow_mut_data()?[8..])?;
+
+    emit!(RedemptionFeeUpdatedEvent {
+        accountant_key: ctx.accounts.accountant.key(),
+        redemption_fee: fee,
+    });
+
+    Ok(())
+}
+

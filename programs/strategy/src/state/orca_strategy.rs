@@ -6,6 +6,7 @@ use super::StrategyType;
 use super::fee_data::*;
 use crate::error::ErrorCode;
 use crate::events::{StrategyDepositEvent, StrategyInitEvent, StrategyWithdrawEvent, HarvestAndReportDTFEvent, InvestTrackerSwapEvent, StrategyDeployFundsEvent, StrategyFreeFundsEvent};
+
 use crate::instructions::{Report, ReportProfit, ReportLoss, DeployFunds, FreeFunds, Rebalance};
 use crate::constants::{
     MAX_SQRT_PRICE_X64, 

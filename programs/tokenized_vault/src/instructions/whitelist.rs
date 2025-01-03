@@ -5,24 +5,25 @@ use access_control::{
     state::{UserRole, Role}
 };
 
-use crate::constants::WHITELISTED_SEED;
-use crate::state::{Vault, Whitelisted};
+use crate::constants::USER_DATA_SEED;
+use crate::state::{UserData, Vault};
+use crate::events::WhitelistUpdatedEvent;
 
 #[derive(Accounts)]
 #[instruction(user: Pubkey)]
 pub struct Whitelist<'info> {
     #[account(
-        init, 
+        init_if_needed, 
         seeds = [
-            WHITELISTED_SEED.as_bytes(), 
+            USER_DATA_SEED.as_bytes(), 
             vault.key().as_ref(), 
             user.as_ref()
         ], 
         bump,  
         payer = signer, 
-        space = Whitelisted::LEN,
+        space = UserData::LEN,
     )]
-    pub whitelisted: Account<'info, Whitelisted>,
+    pub user_data: Account<'info, UserData>,
 
     #[account(mut)]
     pub vault: AccountLoader<'info, Vault>,
@@ -48,6 +49,12 @@ pub struct Whitelist<'info> {
 
 
 pub fn handle_whitelist(ctx: Context<Whitelist>, _user: Pubkey) -> Result<()> {
-    ctx.accounts.whitelisted.is_whitelisted = true;
+    ctx.accounts.user_data.whitelisted = true;
+
+    emit!(WhitelistUpdatedEvent {
+        user: _user,
+        whitelisted: true,
+    });
+    
     Ok(())
 }

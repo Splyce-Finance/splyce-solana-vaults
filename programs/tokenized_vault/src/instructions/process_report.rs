@@ -80,14 +80,11 @@ pub fn handle_process_report(ctx: Context<ProcessReport>) -> Result<()> {
     burn_unlocked_shares(&ctx)?;
     ctx.accounts.vault_shares_token_account.reload()?;
     let current_debt = ctx.accounts.strategy_data.current_debt;
-    msg!("before handling profit/loss");
+    
     if strategy_assets > current_debt {
         profit = strategy_assets - current_debt;
-        msg!("came to profit");
         let (total_fees, _) = accountant::report(&ctx.accounts.accountant, profit, 0)?;
-        msg!("total_fees: {}", total_fees);
         fee_shares = ctx.accounts.vault.load()?.convert_to_shares(total_fees);
-        msg!("fee_shares: {}", fee_shares);
         handle_profit(&ctx, profit, total_fees)?;
 
         if fee_shares > 0 {

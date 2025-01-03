@@ -12,59 +12,6 @@ import { airdrop } from "../../utils/helpers";
 const { ROLES_ADMIN, ...ROLES_SUCCESS_DATA } = ROLES;
 
 describe("Access Control Tests", () => {
-  before(async () => {
-    console.log("-------Before Step Started-------");
-    await accessControlProgram.methods
-      .setRoleManager(ROLES.VAULTS_ADMIN, ROLES.ROLES_ADMIN)
-      .accounts({
-        signer: configOwner.publicKey,
-      })
-      .signers([configOwner])
-      .rpc();
-
-    await accessControlProgram.methods
-      .setRoleManager(ROLES.STRATEGIES_MANAGER, ROLES.ROLES_ADMIN)
-      .accounts({
-        signer: configOwner.publicKey,
-      })
-      .signers([configOwner])
-      .rpc();
-
-    await accessControlProgram.methods
-      .setRoleManager(ROLES.ACCOUNTANT_ADMIN, ROLES.ROLES_ADMIN)
-      .accounts({
-        signer: configOwner.publicKey,
-      })
-      .signers([configOwner])
-      .rpc();
-
-    await accessControlProgram.methods
-      .setRoleManager(ROLES.REPORTING_MANAGER, ROLES.ROLES_ADMIN)
-      .accounts({
-        signer: configOwner.publicKey,
-      })
-      .signers([configOwner])
-      .rpc();
-
-    await accessControlProgram.methods
-      .setRoleManager(ROLES.KYC_PROVIDER, ROLES.ROLES_ADMIN)
-      .accounts({
-        signer: configOwner.publicKey,
-      })
-      .signers([configOwner])
-      .rpc();
-
-    await accessControlProgram.methods
-      .setRoleManager(ROLES.KYC_VERIFIED, ROLES.KYC_PROVIDER)
-      .accounts({
-        signer: configOwner.publicKey,
-      })
-      .signers([configOwner])
-      .rpc();
-    console.log("Set role managers for all roles successfully");
-    console.log("-------Before Step Finished-------");
-  });
-
   it("Initalizing access control program with super configOwner when it is already initialized should revert", async function () {
     try {
       await accessControlProgram.methods
@@ -295,7 +242,7 @@ describe("Access Control Tests", () => {
       assert.fail("Error was not thrown");
     } catch (err) {
       expect(err.message).contains(
-        errorStrings.accountExpectedToAlreadyBeIntiialzied
+        errorStrings.accountExpectedToAlreadyBeInitialized
       );
     }
   });
@@ -399,7 +346,7 @@ describe("Access Control Tests", () => {
       assert.fail("Error was not thrown.");
     } catch (err) {
       expect(err.message).contains(
-        errorStrings.accountExpectedToAlreadyBeIntiialzied
+        errorStrings.accountExpectedToAlreadyBeInitialized
       );
     }
     // Still has the existing role

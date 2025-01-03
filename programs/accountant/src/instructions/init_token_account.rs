@@ -18,13 +18,13 @@ pub struct InitTokenAccount<'info> {
     #[account(
         init_if_needed, 
         payer = signer, 
-        associated_token::mint = underlying_mint, 
+        associated_token::mint = mint, 
         associated_token::authority = accountant,
     )]
     pub token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut)]
-    pub underlying_mint: Box<InterfaceAccount<'info, Mint>>,
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: We want to hadle all accountant types here
     #[account(mut)]
