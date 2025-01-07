@@ -306,7 +306,7 @@ describe.only("Vault User Operations: Withdrawal Tests", () => {
     console.log("-------Before Step Finished-------");
   });
 
-  it("Withdrawing more than available amount in the vault should revert", async () => {
+  it("Withdrawing more than available shares in the vault should revert", async () => {
     const depositAmount = 100000000;
     const withdrawalAmount = 100000001;
 
@@ -323,8 +323,6 @@ describe.only("Vault User Operations: Withdrawal Tests", () => {
       })
       .signers([whitelistedUser])
       .rpc();
-
-    console.log("Deposit successful");
 
     const remainingAccountsMap = {
       accountsMap: [
@@ -346,24 +344,31 @@ describe.only("Vault User Operations: Withdrawal Tests", () => {
       vaultProgram.programId
     )[0];
 
-    console.log("Strategy data found successfully");
-
-    await vaultProgram.methods
-      .withdraw(new BN(withdrawalAmount), new BN(0), remainingAccountsMap)
-      .accounts({
-        vault: vaultOne,
-        underlyingMint,
-        user: whitelistedUser.publicKey,
-        userTokenAccount: whitelistedUserTokenAccount,
-        userSharesAccount: whitelistedUserSharesAccountVaultOne,
-        tokenProgram: token.TOKEN_PROGRAM_ID,
-      })
-      .remainingAccounts([
-        { pubkey: strategyOne, isWritable: true, isSigner: false },
-        { pubkey: strategyTokenAccountOne, isWritable: true, isSigner: false },
-        { pubkey: strategyData, isWritable: true, isSigner: false },
-      ])
-      .signers([whitelistedUser])
-      .rpc();
+    try {
+      await vaultProgram.methods
+        .withdraw(new BN(withdrawalAmount), new BN(0), remainingAccountsMap)
+        .accounts({
+          vault: vaultOne,
+          underlyingMint,
+          accountant: accountantOne,
+          user: whitelistedUser.publicKey,
+          userTokenAccount: whitelistedUserTokenAccount,
+          userSharesAccount: whitelistedUserSharesAccountVaultOne,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts([
+          { pubkey: strategyOne, isWritable: true, isSigner: false },
+          {
+            pubkey: strategyTokenAccountOne,
+            isWritable: true,
+            isSigner: false,
+          },
+          { pubkey: strategyData, isWritable: true, isSigner: false },
+        ])
+        .signers([whitelistedUser])
+        .rpc();
+    } catch (err) {
+      expect(err.message).to.contain(errorStrings.insufficientShares);
+    }
   });
 });

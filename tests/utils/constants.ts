@@ -62,4 +62,6 @@ export const errorStrings = {
     "Error Code: DebtHigherThanMaxDebt. Error Number: 6007. Error Message: Debt cannot be higher than max debt.",
   userDepositLimitExceeded:
     "Error Code: ExceedUserDepositLimit. Error Number: 6023. Error Message: User deposit limit exceeded.",
+  insufficientShares:
+    "Error Code: InsufficientShares. Error Number: 6011. Error Message: Insufficient shares.",
 };
