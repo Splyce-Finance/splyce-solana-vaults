@@ -52,7 +52,7 @@ pub fn handle_remove_strategy(ctx: Context<RemoveStrategy>, strategy: Pubkey, fo
         vault.total_debt -= loss;
     }
 
-    let share_price = vault.calculate_share_price(ONE_SHARE_TOKEN);
+    let share_price = vault.get_share_price();
 
     emit!(StrategyReportedEvent {
         strategy_key: strategy,

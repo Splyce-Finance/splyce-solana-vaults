@@ -111,3 +111,15 @@ pub struct WhitelistUpdatedEvent {
     pub user: Pubkey,
     pub whitelisted: bool,
 }
+
+#[event]
+pub struct WithdrawalRequestedEvent {
+    pub user: Pubkey,
+    pub vault: Pubkey,
+    pub recipient: Pubkey,
+    pub shares: u64,
+    pub amount: u64,
+    pub max_loss: u64,
+    pub fee_shares: u64,
+    pub timestamp: i64,
+}

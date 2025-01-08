@@ -28,6 +28,10 @@ pub mod tokenized_vault {
         handle_init_vault_shares(ctx, index, config)
     }
 
+    pub fn init_withdraw_shares_account(ctx: Context<InitWithdrawSharesAccount>) -> Result<()> {
+        handle_init_withdraw_pool(ctx)
+    }
+
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         handle_deposit(ctx, amount)
     }
@@ -52,6 +56,31 @@ pub mod tokenized_vault {
         remaining_accounts_map: AccountsMap
     ) -> Result<()> {
         handle_redeem(ctx, shares, max_loss, remaining_accounts_map)
+    }
+
+    pub fn request_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
+        amount: u64, 
+        max_loss: u64
+    ) -> Result<()> {
+        handle_request_withdraw(ctx, amount, max_loss)
+    }
+
+    pub fn request_redeem<'info>(
+        ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
+        shares: u64, 
+        max_loss: u64
+    ) -> Result<()> {
+        handle_request_redeem(ctx, shares, max_loss)
+    }
+
+    pub fn cancel_withdrawal_request(ctx: Context<CancelWithdrawalRequest>) -> Result<()> {
+        handle_cancel_withdrawal_request(ctx)
+    }
+
+    pub fn fulfill_withdrawal_request<'info>(ctx: Context<'_, '_, '_, 'info, FulfillWithdrawalRequest<'info>>, 
+    ) -> Result<()> {
+        handle_fulfill_withdrawal_request(ctx)
     }
 
     pub fn add_strategy(ctx: Context<AddStrategy>, max_debt: u64) -> Result<()> {

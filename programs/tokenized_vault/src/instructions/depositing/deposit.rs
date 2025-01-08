@@ -10,7 +10,7 @@ use anchor_spl::{
     token_interface::{Mint, TokenAccount, TokenInterface}
 };
 
-use crate::constants::{SHARES_SEED, UNDERLYING_SEED, ONE_SHARE_TOKEN, USER_DATA_SEED};
+use crate::constants::{SHARES_SEED, UNDERLYING_SEED, USER_DATA_SEED};
 
 use crate::events::VaultDepositEvent;
 use crate::state::{UserData, Vault};
@@ -131,7 +131,7 @@ pub fn handle_deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
     let mut vault = ctx.accounts.vault.load_mut()?;
     vault.handle_deposit(amount, shares);
 
-    let share_price = vault.convert_to_underlying(ONE_SHARE_TOKEN);
+    let share_price = vault.get_share_price();
 
     emit!(VaultDepositEvent {
         vault_key: vault.key,

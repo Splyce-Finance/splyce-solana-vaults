@@ -42,7 +42,7 @@ pub struct UpdateStrategyDebt<'info> {
             strategy.key().as_ref()
         ],
         bump,
-    )]
+    )] 
     pub strategy_data: Account<'info, StrategyData>,
 
     #[account(

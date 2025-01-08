@@ -98,7 +98,7 @@ pub fn handle_process_report(ctx: Context<ProcessReport>) -> Result<()> {
 
     ctx.accounts.strategy_data.update_current_debt(strategy_assets)?;
 
-    let share_price = ctx.accounts.vault.load()?.calculate_share_price(ONE_SHARE_TOKEN);
+    let share_price = ctx.accounts.vault.load()?.get_share_price();
 
     msg!("share_price: {}", share_price);
 

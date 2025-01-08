@@ -15,7 +15,6 @@ use crate::constants::{
     USER_DATA_SEED,
     SHARES_SEED,
     MAX_BPS,
-    ONE_SHARE_TOKEN
 };
 
 #[derive(Accounts)]
@@ -122,6 +121,9 @@ fn handle_internal<'info>(
     max_loss: u64,
     remaining_accounts_map: AccountsMap
 ) -> Result<()> {
+    if !ctx.accounts.vault.load()?.direct_withdraw_enabled {
+        return Err(ErrorCode::DirectWithdrawDisabled.into());
+    }
     if assets == 0 || shares_to_burn == 0 {
         return Err(ErrorCode::ZeroValue.into());
     }
@@ -172,7 +174,7 @@ fn handle_internal<'info>(
 
     if fee_shares > 0 {
         token::transfer(
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.shares_token_program.to_account_info(),
             ctx.accounts.user_shares_account.to_account_info(),
             ctx.accounts.accountant_recipient.to_account_info(),
             ctx.accounts.user.to_account_info(),
@@ -198,7 +200,7 @@ fn handle_internal<'info>(
     }
 
     let vault = ctx.accounts.vault.load()?;
-    let share_price = vault.convert_to_underlying(ONE_SHARE_TOKEN);
+    let share_price = vault.get_share_price();
 
     emit!(VaultWithdrawlEvent {
         vault_key: vault.key,
