@@ -4,7 +4,7 @@ use anchor_spl::{
     token_interface::{Mint, TokenAccount}
 };
 
-use crate::{events::WithdrawalRequestedEvent, state::vault};
+use crate::events::WithdrawalRequestCanceledEvent;
 use crate::state::{Config, StrategyData, UserData, Vault, WithdrawRequest};
 use crate::utils::{accountant, strategy as strategy_utils, token, unchecked::*};
 use crate::errors::ErrorCode;
@@ -33,7 +33,7 @@ pub struct CancelWithdrawalRequest<'info> {
         mut, 
         seeds = [
             WITHDRAW_SHARES_ACCOUNT_SEED.as_bytes(), 
-            withdraw_request.vault.as_ref()
+            vault.key().as_ref()
         ], 
         bump
     )]
@@ -59,6 +59,12 @@ pub fn handle_cancel_withdrawal_request(
         ctx.accounts.withdraw_request.locked_shares,
         &ctx.accounts.vault.load()?.seeds()
     )?;
+
+    emit!(WithdrawalRequestCanceledEvent {
+        vault: ctx.accounts.withdraw_request.vault,
+        user: ctx.accounts.withdraw_request.user,
+        index: ctx.accounts.withdraw_request.index,
+    });
 
     Ok(())
 }

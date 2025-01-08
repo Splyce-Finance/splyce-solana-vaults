@@ -5,7 +5,7 @@ use anchor_spl::{
 };
 
 use crate::errors::ErrorCode;
-use crate::events::VaultWithdrawlEvent;
+use crate::events::{VaultWithdrawlEvent, WithdrawalRequestFulfilledEvent};
 use crate::state::{UserData, Vault, WithdrawRequest};
 use crate::utils::{token, unchecked::*};
 use crate::constants::{
@@ -18,14 +18,14 @@ use crate::constants::{
 
 #[derive(Accounts)]
 pub struct FulfillWithdrawalRequest<'info> {
+    #[account(mut, close = user)]
+    pub withdraw_request: Account<'info, WithdrawRequest>,
+
     #[account(mut, address = withdraw_request.vault)]
     pub vault: AccountLoader<'info, Vault>,
 
     #[account(mut, seeds = [UNDERLYING_SEED.as_bytes(), vault.key().as_ref()], bump)]
     pub vault_token_account: InterfaceAccount<'info, TokenAccount>,
-
-    #[account(mut, close = user)]
-    pub withdraw_request: Account<'info, WithdrawRequest>,
 
     /// CHECK:
     #[account(mut, address = withdraw_request.user)]
@@ -44,7 +44,7 @@ pub struct FulfillWithdrawalRequest<'info> {
         mut, 
         seeds = [
             WITHDRAW_SHARES_ACCOUNT_SEED.as_bytes(), 
-            withdraw_request.vault.as_ref()
+            vault.key().as_ref()
         ], 
         bump
     )]
@@ -155,6 +155,13 @@ pub fn handle_fulfill_withdrawal_request<'info>(ctx: Context<'_, '_, '_, 'info, 
         authority: ctx.accounts.withdraw_request.user,
         share_price,
         timestamp: Clock::get()?.unix_timestamp,
+    });
+
+    emit!(WithdrawalRequestFulfilledEvent {
+        vault: ctx.accounts.withdraw_request.vault,
+        user: ctx.accounts.withdraw_request.user,
+        amount: assets_to_transfer,
+        index: ctx.accounts.withdraw_request.index,
     });
 
     Ok(())

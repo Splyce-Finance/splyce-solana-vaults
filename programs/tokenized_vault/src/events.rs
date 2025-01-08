@@ -121,5 +121,20 @@ pub struct WithdrawalRequestedEvent {
     pub amount: u64,
     pub max_loss: u64,
     pub fee_shares: u64,
-    pub timestamp: i64,
+    pub index: u64,
+}
+
+#[event]
+pub struct WithdrawalRequestCanceledEvent {
+    pub user: Pubkey,
+    pub vault: Pubkey,
+    pub index: u64,
+}
+
+#[event]
+pub struct WithdrawalRequestFulfilledEvent {
+    pub user: Pubkey,
+    pub vault: Pubkey,
+    pub amount: u64,
+    pub index: u64,
 }

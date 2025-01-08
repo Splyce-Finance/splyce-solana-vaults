@@ -128,14 +128,14 @@ fn handle_internal<'info>(
     )?;
 
     emit!(WithdrawalRequestedEvent {
-        vault: ctx.accounts.vault.key(),
-        user: ctx.accounts.user.key(),
+        vault: ctx.accounts.withdraw_request.vault,
+        user: ctx.accounts.withdraw_request.user,
         amount: assets,
         shares: shares_to_burn,
-        recipient: ctx.accounts.user_token_account.key(),
+        recipient: ctx.accounts.withdraw_request.recipient,
         max_loss,
         fee_shares,
-        timestamp: Clock::get()?.unix_timestamp,
+        index: ctx.accounts.withdraw_request.index,
     });
 
     Ok(())
