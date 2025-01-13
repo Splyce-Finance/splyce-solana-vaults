@@ -1,0 +1,384 @@
+{
+  "mainnet": {
+    "programs": {
+      "whirlpool_program": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
+      "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "token_metadata_program": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+    },
+    "shares_config": {
+      "name": "BTC + ETH + SOL",
+      "symbol": "CRYPTO3T",
+      "uri": "https://github.com/Splyce-Finance/splyce-assets/blob/master/solana/CRYPTO3T.txt"
+    },
+    "mints": {
+      "underlying": {
+        "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "decimals": 6,
+        "symbol": "USDC"
+      },
+      "assets": {
+        "wBTC": {
+          "address": "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh",
+          "decimals": 8,
+          "pool": {
+            "id": "55BrDTCLWayM16GwrMEQU57o4PTm6ceF9wavSdNZcEiy",
+            "token_vault_a": "v1Vbx3ea67abw6JSanAytb4dtZk2k4VnLZD13oFZcU3",
+            "token_vault_b": "5P83PZMTBXfzjfvpveyoXGJ8SbHDCCDkvgtTWQ5yud1X",
+            "oracle": "6euoT4kMY9B7UU3d9GSs6XDknsRRfC7Pum92AAxxQfLp",
+            "tick_arrays": [
+              "C2yEjhX7dTpjrna52gKBNHYb9HPpK3c9ovXMVWBHbnyt",
+              "Bn4VNmVfdFUTB6Crgrkqn66hx7HicHaN9ipckZ1gnSwB",
+              "91LJqoevZe3qJx2QFTmi9JYKuZKR6pqythzqUUbG3pfX",
+              "6os1zvXUEq6Vop6qhiPskn3tscRMYGgX8wfzCEHJmeTT",
+              "CbLCGzoFJ244RmjznbXwN5FBb3ikFqNvvq1EncURZ6ZS",
+              "AttQu4YY3ox8bsAFajKxYN57LRPgvSK2hcQ2jBQTcEJJ",
+              "EnFVdk1PAk1irEea7uZwRSKhmfJZhzMaixQ4pCU35DJJ",
+              "2qgbLgTcoWX7QQbvn2Sz2ZBH6kZfMugLadLhWgz3WpJP",
+              "4yG3mQRdAu3bT6qMszWEsGHhu6Kr7a9uetsvpELjMJc9",
+              "CDwMWZzgxuX55adyGqZarH8S8MaZVZ8QWV27wvKuAGSe",
+              "Hxz4DkfTtCT1wmcQW4VhKKcwDUxsmnW2JYqQiZsXEPWW",
+              "94FteVE3md4JKzQpxh9yLJ6VYDWCykJCcrDhYaFjw7hX",
+              "ByKpU9V6yUoWET5oJVqnP2xaYe2xye3A2QZPdSBZEiLz",
+              "7bNsPowdWioTCPEsmTfZHfnMtzFUN8eyvcZfRBby8GCe",
+              "DtgfPsxxB9hb9Xg2SS2rBef3Cz4pWfb7KupyiFf4CGmX",
+              "DtkBvZp7dDyGjpKiX5pUdEo3uQ3Z1h3SyuH8BJiztFCj",
+              "GLtMvyJY4VCSLqNgpgFMNjhoHHembL1x4LvG5kShtVJp",
+              "DDXMQsLSEQnZDZ6bjfs4PU8gLTPf2Feb4my5ywANQCS4",
+              "CuNdxYUoiJYjSw4x93X9ZjN1CaqVdBdKPqsgSLRxrhQ8"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "whETH": {
+          "address": "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",
+          "decimals": 8,
+          "pool": {
+            "id": "AU971DrPyhhrpRnmEBp5pDTWL2ny7nofb5vYBjDJkR2E",
+            "token_vault_a": "EYk1gzG24RSYMtfrcS4j1VLg4Lu9StefbxP6Nt9uFT5f",
+            "token_vault_b": "4iznQFptuX2A2L5NNinFjSvnXzc2Vhd6b6w8a4nXCpqA",
+            "oracle": "38ciCQrZMoTaRq3sXCzsVeEx7J18HvKAxEzV3oskXJZY",
+            "tick_arrays": [
+              "7qqAPM88c3s7wijTxW8azPFVF61GbD9TZ4JRsW2UpKt",
+              "2jtbrdt8cgP94ExePVvvWCj5dpSmSUnHQ7qPYcaBE8wG",
+              "CoGD3qEooz4dzgQ6WFy8FSo1hyBea1UnjZ1KNjuG2VUS",
+              "EcCfYxDyBFqB9mbuDD12T358sAmoes3JGc7w6Tyr4eQu",
+              "HNhZ8xyXR1Q9u1YtDrBTbxQvYoShiDXPnmJocG2pnmM6",
+              "CD7oExFXK8QsvF47cTpZWDC8xCb9drui5z3TYFhhXUvC",
+              "8veZuz34b9JbnjLE7MQPVK7KYyMkg6BdfACN7Dkmesr7",
+              "AZ49N3wq5TKkB6NAGHtZEMEpbm1sf9iKmqwwCdM8VHxC",
+              "4G9MoY9rTDxE5w8ARhvxULCBu6hdHqgLAC8AP5uipvKN",
+              "29gTuNdR8WY1ykX3RNfpmihoWb7MFHKZADoQhQfmKwk9",
+              "8FWug1pT6s38BxTRYZMQUB3nTVM5sbtx5CoBypTV3kRF",
+              "5CQq46j1Uke7twCb8DfevHmbc6nXMuhA42XdmhtkLNTY",
+              "9dpWJUJzXR1cwCPMmsRamfpCua8chfGkSP7UkmRgcczT",
+              "2qs5My7xkN9io3BwnJrVV9mj4Jd82T4NSviZRNhGSBA2",
+              "ezNjYPHUEUqy6HzJ6m6EDQ1haohBSBcJo48TxFa9xMv",
+              "Eof1gFf82jT4Z1VmS6G6MmtXjoNh25VXiYFKRmu3xL8N",
+              "5cfWnKbQCeiZon1w5f9oV2xsgtfCXcF1bHaC4FuZobPN",
+              "2bL2CfqQf2oR388rtXPT5Wa49RGN1FtBj6hQWVy3M48Q",
+              "8CNoqUMwnjsTfav37iPpCxC6AezgFZacC44yudv6s2Mm"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "SOL": {
+          "address": "So11111111111111111111111111111111111111112",
+          "decimals": 9,
+          "pool": {
+            "id": "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE",
+            "token_vault_a": "EUuUbDcafPrmVTD5M6qoJAoyyNbihBhugADAxRMn5he9",
+            "token_vault_b": "2WLWEuKDgkDUccTpbwYp1GToYktiSB1cXvreHUwiSUVP",
+            "oracle": "FoKYKtRpD25TKzBMndysKpgPqbj8AdLXjfpYHXn9PGTX",
+            "tick_arrays": [
+              "88nUBTszo71fFePU3SD5CKHk3fqWxmXxx6dUaPPWnQop",
+              "5Fainb1wjVLUawSMqbirJNek47eBAPDyivaMZFbMZYFF",
+              "Hv9aCrHkyJQFdHdPyLiuj4d3E3H833jzK1VBpEh1QjpP",
+              "ErdzvuYUjAkvo82StCX1AinozCW6XHNZvKPw3Kzi6XeZ",
+              "A8DJW3RDjYZGtgU7B86jiFJbzEGUygGszWVJxS1Dn2zG",
+              "7cjaXfrUGEB78rzmLJQhr1myjju75rr9raYyeh4XT7Ya",
+              "EpmYr9EDCdiZgPmdfTeEupXMyPoBKbwkPrutSPUJLua",
+              "38d2DowiQEn1BUxqHWt38yp4pZHjDzU87hynZ7dLnmYJ",
+              "3M9oTcoC5viBCNuJEKgwCrQDEbE3Rh6CpTGP5C2jGHzU",
+              "Dbj8nbAEZPpQvNqhDRGVrwQ2Y2gejNrnGFJ1xPS38TXJ",
+              "BtCDvZXqLLJyzh8bJWYW4hLPdJZi7cQWJ1CWwU9sA2G6",
+              "63vsBPDtySAoA1tEdaevWJbDYCQ3UNPRa1Lkf93WPZc6",
+              "ANkk7h9Ak8o5tkYhc5tZzw8TCxfvGrnpJ6ht26roh49a",
+              "FDEKPFxikdR5mnyZuQxjXiughuonhj4UULFTPgXEvSiG",
+              "DAJjGxPKTEBcDdQqojLuN1nEpKNcAiowoqguHb2AA7dy",
+              "Gatq96doL94Km6qTvneqkras6wGdT8ARC74155QdYYeC",
+              "76W6gGZiGiNvZa2jKyEq3GvLcVukDCusKQYzJQS95htJ",
+              "9A3AbdZWgVY3g4GNfSsf15rBRyLwARKAdzbcPUvwHiWT",
+              "8bnKeevCLsmbudhjkwg6GFMcsZpf78cs8pzRxzMqwZLa"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "JLP": {
+          "address": "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4",
+          "decimals": 6,
+          "pool": {
+            "id": "6NUiVmsNjsi4AfsMsEiaezsaV9N4N1ZrD4jEnuWNRvyb",
+            "token_vault_a": "2KiAy13bDCMGfJ8MqbpTC7g3CunHjLQYMs3wK14XM5LZ",
+            "token_vault_b": "GoJSsR8AwPWCbbbFfwVtT97vTEdKs3kwGkahgvhiybMU",
+            "oracle": "8HchJS2ufNvZv6i3Q6zRLvBDpVe1P72ArR86p2hUHvg6",
+            "tick_arrays": [
+              "HBP9GmGNYBUGWzGCKJEnb42RrUFbBrsQCYa29yGoK9MT",
+              "GtrHSVrFwfRawrhrR4dvhF7R3EqJ694YhXB5mRsGAtNx",
+              "2yNSey4TjK9pJwxNX3htXVMes81wwPXddLsEbHxYAqsq",
+              "AbLWmPS6SEyTCeDchk1oHG9bvur584j95kAJ6dXAa2z7",
+              "9WHNpTpRL3TKy2UHuhWyNFFMNwi8sT3DyVXCZJJVzfcE",
+              "7NBbtXDZvxh6U7HDR3mM6DQciumP3hxXeKgDW39An2ZG",
+              "GUasnT2iK2FJvXGggchPM85LSmZYNy8pyDwHxHb7GeZ9",
+              "7ueP95xxpKL6rUqmBMUTvcMG1BXMooc4B7hm2mXKQp5k",
+              "GeBC3bZ6ixc6BMXpyuA9eZDxtDudjZYS8pZswWrijGVk",
+              "J9twoKR2DfmyvE8HX6fDraaY2q5oECkHpZgtySiJkpsV",
+              "Bz6Z63thYDzcs8ddLQ2CuoAMdK4QNjRhnr3RCLN5vciF",
+              "FGixaRkAbKtrL6bdaRwAgb9gXocYRMmn6m6betSdckZm",
+              "9EDgyY9m2LGGHt9ZRcprbDAjUFurWVUoH3HRZ4Cm963P",
+              "E8unvjyzG2QpaWWtV1s7uixeCW7QMs49Q2jQ86U19DjJ",
+              "7cs1chipprbrp8z84E7GX7WMf63Cgrohyi3r1W6gUGpu",
+              "9Z52vEskBeNBNBpnP3GZJJhtdeui3bwi9Vp6htDSNpnZ",
+              "2mUXAXVP6XPtx9QvesxBnAjKtrMfejjWDK6biPKLkV6W",
+              "4R4eCQ3pqE9NsAYnunU55vpnagjeqfhMws1wth6JbEx4",
+              "4ApuwtB5kKNTvgzVDTT5xT2iSfg58XN9pshK4bgb7m5P"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "KMNO": {
+          "address": "KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS",
+          "decimals": 6,
+          "pool": {
+            "id": "3ndjN1nJVUKGrJBc1hhVpER6kWTZKHdyDrPyCJyX3CXK",
+            "token_vault_a": "5mpXMyJsw7BQsEZxVXreNRZQytWvbSfpTQC37xofT1wR",
+            "token_vault_b": "5m3MXzAwb9xj6RHFtXRkBh9DJ6kWMpcTK3dmY1ucgXZ",
+            "oracle": "7h9s2c7gZNECbi2jAA3fCNRw693pMhBNMkBdM61Wa4ox",
+            "tick_arrays": [
+              "6w1RLwH8AGZp43wc4sZDm19YPyvgW3vBjCfM6BRnMaAM",
+              "HA2NLvpsp3EDc4srV6F5wQ9k7wUUJGxWWrKpdebiy7T9",
+              "GF9YPsVA76KqpeT4iXr42jMFVwdBqNBKe4b4dZwNRx9j",
+              "EjMevMkGES7w31KdAekDa23TusaipLfXvnVbPdY48zyN",
+              "7PXG1dVrCJoDyZEMq5pCF2y3biD1BrjAuvLnjifKyqvq",
+              "FP1oraFdWzfm5gkiBca1AkhfKbAbQi7ZDfaq8GPr9bXK",
+              "CgyYZQsmf9gdVgDzJafZ9AwxdKMP3E5JE4wLxV7SfdDN",
+              "GEDHsNyxB8qV9iFMoAeT42iSjV5ehLqx1rUR92Eoh6Zz",
+              "9aMj1NkoqeT5a8DbawHv7t3aCLcqv4XEvCPVwtULkShp",
+              "Hy684vQNupY6fvtCuirdjUaf8wUhMwEseBqWKMy4S4YL",
+              "3HWpcnd9eh1H4KJfyFxqT4F1GY41eYYMb7MmTtYEqeYs",
+              "GxHQuSghkKibHYwSi6PzkZH3hDKGLEd3zCLnMU4FTAzT",
+              "A6QorYGimucezsUbhNPKCBTVFeFvM1bqG76R74iVyRn1",
+              "6MRwWbLymMeWGPe2K1E7cS1k9HabtsdH5cyuCHajJVsh",
+              "8aXdSdWMZTT9ufcEw3drwcWcksCWhsQHRUMqGpkXdJ9Y",
+              "2Hicg3cvkRuJjdQErTBQ9cirioGqa8Zh3UZAjUfWFgUQ",
+              "BHsEomom3rwV4PpPbU2HG6p35YezhWdamGKCtfjVakFd",
+              "BJmxjrm58CQLo53iwSaC1iSeCenctqcjMpa2s6N2VH6c",
+              "CdewVG3B2oNfEoLxvzC315LAuo7S4cP1FsaWePPycwvg"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "USDY": {
+          "address": "A1KLoBrKBde8Ty9qtNQUtq3C2ortoC3u7twggz7sEto6",
+          "decimals": 6,
+          "pool": {
+            "id": "7riFsDxbskTqDtCSjev2jN9hyAJqeKmbWqgfiWD6ikUC",
+            "token_vault_a": "6ppAq1Vpoqdtz1rG42Fz6fNGnqZVZt2pjxpGKppKFGxb",
+            "token_vault_b": "D35rbBT2SvRhj13gYjuovgokgnwGTgb7zqwCQBWAAgdD",
+            "oracle": "8yhPTBgKpTugdpJc6p3Zfdn83cnMZ2rc2Ksj9douRfDG",
+            "tick_arrays": [
+              "6GoqYJSgJXvVErw1L1vv7NfBgHYTaQYG89thijoFY6iZ",
+              "6gKrzBo5RJ7nQS3eKGVYa68vbXCtNrDuzvKeLRPWoNwf",
+              "GQYqpZhrSjEdA3qLi8H972LMRTTN1c8WPsLRHzYZEBRr",
+              "fbDvgfetDxbpmcBKCz8NwwG3fAWAwoENrPV9B28Kv36",
+              "7ybybgUqzSyrMXKxoHun2fG4tX4H5iXNos99jUNYBEL9",
+              "H63u8jnJgzknGNM4vCGowNEWxZuB3F6Teb5fgiGKQDTb",
+              "BGWFtrAwzGeTkM64M7AYns11GyusVQzQbw2MZ6CE6Dpa",
+              "5kdjFutJDTqKYziRBvX9HoBNRuiqHaJ4HW476QEzz456",
+              "B9P8LzeKLKCpypocPdauLVt4Ao31VvfTEpeJQSFZN8jq",
+              "DfVnKPFCQmf48JATSAPzehiQDtmQkXdLc2U4zqEaLPFa",
+              "HKf8QHWnhosMVrcM44HZKWxBtFg5Pc1GQ15WhddVn1Me",
+              "2aWMiC1sQU5BurjVhYqXapWADVjnxX7UtrDnhHpc1q7a",
+              "83u64f1vGn3v4uNwczANFmTjzj4zg4F9ZpEDS19MRuk4",
+              "DS19Z5j6c4aU1g2VH6mhnfZbdr4FVKMayCTbEVtyUyTR",
+              "2qjLiuUFN3ASCtWdn9H12Mkg2ToooExhDnKK4qcpfHtr",
+              "BvCGFoKPiaJPRxFRKxJxv3x7XPCwkZ7K58fJ6MaR8Q4z",
+              "Gq3Y632SqTH8Wv5VLFou9QPjZvWty3Kv8eBUmkRvX6kc",
+              "DBgnM4P9FGLpRKT17Cbus7SjyySdVLwKwoKmihTcZwh8",
+              "PcMa5xNzXy4463VvzxF158BCseHEQSwXttRkXirAjt3"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "USDCet": {
+          "address": "A9mUU4qviSctJVPJdBJWkb28deg915LYJKrzQ19ji3FM",
+          "decimals": 6,
+          "pool": {
+            "id": "8hcwA1hr1bLGLHXBCadXWDgxsc1BTe4hAKPcQgTVNXL4",
+            "token_vault_a": "5GKDU8UxVYZRZtS4oyp91H4ZNw3anys3M2kRtbp7mww1",
+            "token_vault_b": "LS8fRNWyATYcKf6JZf1EA6smbi8z1x16K1ssuTorxz3",
+            "oracle": "4TSGv7AgGRHDrhiA8LSJqfLZW6ZSsSbxr2yLLYu7b5tu",
+            "tick_arrays": [
+              "CoXCEFT6uv4FB48ALohv6GSNaBi1odR711ryk8k9VCD8",
+              "cBAAm1NdMsyinXg4CEhZA9tfu34CiK2mqB7U863Cteh",
+              "DoBzJtrjmfVtFJaw3H9UDzcY9Y1WXJZuxdn1QpMbuy7k",
+              "BMTM6UXwC9pdEPS77fzbenuamDqqC6ixtBEymPVuvhNh",
+              "D2e3xKy1sPkgMfVA3WPnc1AMQxiWYVS2qeyEEmCfwBSX",
+              "3rhEH2XeiPTDUxp9hdr1t5aa4eWwaX5eYQoXbbBZFNck",
+              "6RTDWDiCPzCVrvQT2dz7yQJ6ibfXVCTFEbnDrjAzXWGc",
+              "4keAqfWtMXmrdqJn9P7vrwQ6nA7opSeEfzZ2d7fm4F1Y",
+              "GJZ9jbHzoBzi75GEMA3FLm8V7HeqSdC8X6UTaHT3vWje",
+              "ACG8u3WjaNZWzp9pwYsP8gX25F63dc1dUACWwPqUQuKt",
+              "ATAwZxVJBurbE9VJaiJLq93XpEWD2PE64aEVyGpbt7Jq",
+              "SWK853LnG8gUZmvi9aMWYn4t9wbq2nhTKhGvf8Jc1hj",
+              "E9TVQSiMd6ERBgZZUzHFjUatUzpyceS5NS6H4EBuYEqo",
+              "2ZsvhYw31czHcgodRQyxE2axZSbzqt1BALEh4phw9dpy",
+              "7YRk8XaS2RPGfZAFUovk8TSmYoKtARJAw8V4oQRufLBF",
+              "Ayr8Vg4GreM7p3XCuxGoKMhw8VPcqvXajBSVTTCAcupF",
+              "HHxDjXbVEEcTf3rQYqCW5iRb6TzMeQY4PsceAiuRFDhh",
+              "8poNFm1w3Wm4CqK4L5dKjA9f5t5iBAzSLz95GddiQohA",
+              "HNu6o6QQ2zTs2sfBuZgkH5SeL6ZhDGyZstFg2paWKgWe"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "IO": {
+          "address": "BZLbGTNCSFfoth2GYDtwr7e4imWzpR5jqcUuGEwr646K",
+          "decimals": 8,
+          "pool": {
+            "id": "B2i3TXHdtdDLYP5X2DhXZhUTpbqfzW3JKtBAH4sKAvnY",
+            "token_vault_a": "2SPYUsnKde7g4b4xe94UwmxDP8H5zFi3gUngw1Da4Sud",
+            "token_vault_b": "5Ju399WimVZBEV5wUJrPxF5NNkJxTJ1iYhaNcdbfYr2h",
+            "oracle": "J7czQL4S88TvWgExGmLzA5TWsj2hypvJho5feeCDJj3y",
+            "tick_arrays": [
+              "2LRnvNJmF4Dv3L7naPNaS6BGg13RHSbMSzRdJY4BVN5S",
+              "3hBEa9sJiGroikgKcyVyL7rPU8BrmXQ2jynAWVruJiXv",
+              "BnjzNCMkjvzeif6F1B9ye2KPPtGShqK2YP6NGKxFutmL",
+              "D76pdGcUMLD2frW4bFvphpRuHwRTRTa5vzip6MZdvR8H",
+              "6wRpjX6ZYYB96EGwU27enKg3DtWrg792XBySsmsGSq3P",
+              "GJLofuQxz7u9fyP6uKXWMi3FZnTUP8Hs2kb8LTKFxvad",
+              "GDQxXLRQedvNCtbmefAeoN3iounhz1DcCruK7nrcugPY",
+              "F5zBmTjYBqnVHEvWLguz9qLs1Nqb8EhrRU7JDnUXKPG1",
+              "87pM4cDSmdubqym4qrNZuM4bSSfLGeoceEb6qaF3WDse",
+              "7Cdgb77ikfJDXsfyDxvnYzZfQ1L8FCQGQBnCWHjSgF56",
+              "G62zzLMQzRKYtyfuMAVUeuKbrLKPuhKu167KnBYKps4u",
+              "6WRTzU1ZQuN1DdVXTREnur77Srb8AN8QFsJAW5dLfv4s",
+              "1F83pivzHFXjv5FvZ3jQxmZoeo5qpnk6fNBdeghfjkd",
+              "ExJXT4TQJceRAoWrXqrF9HmxYHcvM1mqJTLyAuDuTcDS",
+              "5dCMjvdTZusFsQSE7zAYTRWHm2M41gBMZ3zctYBWi2ND",
+              "AxenCui37HkgKfGw95ntr4EPiDfu5kHSkxogG2gUShWU",
+              "8qALGK66Ku52oSJu7cnfUWXrHaHCisoV5dfjcTzWnKPq",
+              "BsgERnDNKgutEjGVsvnAw6YCzTs3uWAM5KBHJ9LhkNwh",
+              "grXpUsGk2nQv4h1SgiCadkoacPnXmgx7zdYtz3zc9AF"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "NYAN": {
+          "address": "NYANpAp9Cr7YarBNrby7Xx4xU6No6JKTBuohNA3yscP",
+          "decimals": 9,
+          "pool": {
+            "id": "57xTqqteaKhQuXYSzNxb6yqZKHw7vBfsj927DznumJGP",
+            "token_vault_a": "51iTPiPovvR86cFXUiffCKRYnsF1WAXgvw1TrEo24wjT",
+            "token_vault_b": "2BGpebkKEfMk6s7id8YZ2BVzSDmnEf6Q4UEiJLMuF5TK",
+            "oracle": "7ZXfJ55Y51n9TYDbm5dB5rXVjdirtVTCj8aytuEtjqt5",
+            "tick_arrays": [
+              "6nr2cNVP2EHC8UejdJ5SPDdDEWsVCAboDvPk2SFjrwMW",
+              "6RKKxZrZzWH4yTc9YH538ip368LTNrjsvHhGrAeGvxt4",
+              "54FQccyJK6Dm9LmuqbGanxEsfVJgT4SQaxAjJs5H5TQX",
+              "2dkNc4PzMZRuoTeRCgvx6h8rF8JNvoGPpfWJno1iK4G6",
+              "HtjZXKQBaMEFbM5LqEEgxr7jYL8XxieU32c64grBnGpP",
+              "DC551RSfXPe7dKCQpyLCm9c3NiwS8z6qMV6zbrnxC3eJ",
+              "FduMgwMPkUVJsC4zpzbsmkZuX4Hjc1RByM4tqZNiHuSY",
+              "8K7PitU1hrtaU831ck5juNNpZjRy5dq9C7gYoZb5WC6V",
+              "2fMZ1XaExqntTN31P5ki74PVrK42h3b7Lmi6gMhcGN6v",
+              "3Xu868X1GoaavGTtJQDgZXJtFXdaxcDmQd1ihTaYvx2N",
+              "Eq92KxZUcnMWAcb4BPCCmXt5tvoRE6BPF4qyPfW1bHsT",
+              "5K1w9VwHhHDgD9DPwy4SvoeWxLHHrzvx1baYHV3HgyHM",
+              "HcPLXr5bWEVn8EDKujx23Wv9NZTDceSLXP3PSjtCMm1w",
+              "DKmtSc9or9Djxx9YsBUGRrWcszenAgaPDZgcq3b8TNYS",
+              "AWHZwZPyPJNFb4j3Zthnh5QqMGSArD69ngbW3JAnjBGG",
+              "n95ByaK8AWVAtjHRXAXqTRMtw9Bn83iPJ8fseiaALZa",
+              "Dfg4t35eGevUWVSuCBu21JjSpaKhdtKxyEkjcNRNTkwJ",
+              "2z9meeRgeaLnjqGQMNJ9vduzfokhDtMfCJgFYf1BdrGR",
+              "2zyGFUY6AhwY1pTNaxVrPo1HvK9vPPYbWkVvNCGVmkXD"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        },
+        "AURY": {
+          "address": "AURYydfxJib1ZkTir1Jn1J9ECYUtjb6rKQVmtYaixWPP",
+          "decimals": 9,
+          "pool": {
+            "id": "Gr7WKYBqRLt7oUkjZ54LSbiUf8EgNWcj3ogtN8dKbfeb",
+            "token_vault_a": "6iBcikjTfCmUdNgzaLV8FwSBTSwL1V1k6yy6rFJfABKq",
+            "token_vault_b": "6yBEq7muxsVLcBMNjoeQBFJ5mDAtcamLC9GYAYmSgK3X",
+            "oracle": "CyfmY9Mn8BgWU6fXhy79s746KDv5UczZwCtNsa3wtPYo",
+            "tick_arrays": [
+              "DRk3fW9TRLdukSKAoDNiczDjUCEDCotzwoUTKgGGsUCz",
+              "7UxKbHLEm3ukxaDafMb3Lq4GE83HKsxeRQejq4UPbyhV",
+              "biETetnsDHJVkZ8pzYor4WoUW3cDzPJUxfb7Vu67gcL",
+              "9MTWfd14egsbNbsAAfRaMkS4xC5hunhnuiE6qEqXFSnu",
+              "CBnavJUGt6MCnig1sxuDessasWNo2cmZuVcALmCX6pWY",
+              "HXds9eyu5YTsztqqiFxnzsxjSzAkssPqiJFKCtToFwk5",
+              "HFeGDKtfjtFWt8EXB86upmBAAkZ5BHxTUpPLhhgonpFC",
+              "GCgjTj8TP2BVCxF41JYLuewPdrvd3SZoyUQ89fHEfbQF",
+              "DGcDgUv8dhJNgVnYT234cDx4zCweKqgfjak3Zq1vbi6L",
+              "GCthzwrm2q3p5pEbs7gQDk1syQacUZNfy95boKdUmCj9",
+              "ACBjM2kZCYx6dJ1bae6JjwGsWXgCmdn1ZNNJX1gn4rsE",
+              "DSELTwxTypjZFA7TJYs5FFWdSojVQ9eAj912iAx3PNiH",
+              "C2cofQEGbPmMv93HjbqKnzaukjAsYcx357vjWpAS2a9w",
+              "C6FMihde6iNU1cCnC15XdtBPF2gkoeSCUtTSc1czGm82",
+              "53c75QYvd7Np3XwAxZdr16gDthxLXKxdT4FsJVEGvCPh",
+              "6Ku8vRjbPieaQaG6T2W5sCKKgSofMDH1ovs7dn4DpDhQ",
+              "9YqJcCR6BHmfUG3MBMrbRnXWoFa3PZGf9VaUNm8HwcoM",
+              "8Dq8UZqCFFADdCcXuJNeQPUqeTT3Jgvhc43WXfPiZfKk",
+              "5DaQaF9KHBgA4EUvK7D1sJ38tSp1FjEHRLUsKzzxzGnv"
+            ]
+          },
+          "investment_config": {
+            "a_to_b_for_purchase": false,
+            "assigned_weight_bps": 1000
+          }
+        }
+      }
+    },
+    "roles": {
+      "report_bot": "JE1GQhjSiam5TckzWcUu6CHERM3ELfmsVcfd6VJvj6wv"
+    },
+    "vault_config": {
+      "deposit_limit": "20000000000",
+      "min_user_deposit": "1000000",
+      "profit_max_unlock_time": "31536000",
+      "kyc_verified_only": false,
+      "direct_deposit_enabled": true,
+      "whitelisted_only": true
+    }
+  }
+}

@@ -22,4 +22,4 @@ pub struct InvestTracker {
     pub unrealized_loss: u64, // shows how much of unrealized loss is there in current position
     pub tx_realized_profit_accumulated: u64, // shows how much is made in tx so far 
     pub tx_realized_loss_accumulated: u64, // shows how much is made in tx so far 
-}   
+}

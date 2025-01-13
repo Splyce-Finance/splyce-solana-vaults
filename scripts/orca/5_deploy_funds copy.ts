@@ -14,11 +14,13 @@ import {
   ComputeBudgetProgram,
 } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import * as dotenv from "dotenv";
+import * as dotenv from 'dotenv';
 import { formatInvestTrackerData } from "./utils/format-invest-tracker";
 
+// Load environment variables
 dotenv.config();
 
+// Type definitions for config file structure
 interface PoolConfig {
   id: string;
   token_vault_a: string;
@@ -56,124 +58,123 @@ interface Config {
   };
 }
 
-// Helper to slow down calls so we don’t spam the RPC
-async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Load deployment addresses
-const ADDRESSES_FILE = path.join(__dirname, "deployment_addresses", "abridged_10_assets_addresses.json");
-const ADDRESSES: { [env: string]: Config } = JSON.parse(fs.readFileSync(ADDRESSES_FILE, "utf8"));
-const ENV = process.env.CLUSTER || "devnet";
+// Load deployment addresses based on environment
+const ADDRESSES_FILE = path.join(__dirname, 'deployment_addresses', 'abridged_10_assets_addresses.json');
+const ADDRESSES: { [env: string]: Config } = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
+const ENV = process.env.CLUSTER || 'devnet';
 const CONFIG = ADDRESSES[ENV];
 
 if (!CONFIG) {
   throw new Error(`No configuration found for environment: ${ENV}`);
 }
 
+// Get program IDs and mints from config
 const WHIRLPOOL_PROGRAM_ID = new PublicKey(CONFIG.programs.whirlpool_program);
 const UNDERLYING_MINT = new PublicKey(CONFIG.mints.underlying.address);
 
 async function main() {
   try {
-    // Setup provider + short delay
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
-    await sleep(1000);
 
-    // Load admin keypair + short delay
-    const secretKeyPath = path.resolve(process.env.HOME!, ".config/solana/mainnet.json");
+    // Load admin keypair
+    const secretKeyPath = path.resolve(
+      process.env.HOME!,
+      ".config/solana/mainnet.json"
+    );
     const secretKey = new Uint8Array(JSON.parse(fs.readFileSync(secretKeyPath, "utf8")));
     const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
-    await sleep(1000);
 
     // Initialize Programs
     const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
     const strategyProgram = anchor.workspace.Strategy as Program<Strategy>;
-    await sleep(1000);
 
-    // Vault index
+    // Define vault index
     const vaultIndex = 2; // third vault
     console.log("Using Vault Index:", vaultIndex);
-    await sleep(500);
 
     // Derive vault PDA
     const [vaultPDA] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("vault"), new BN(vaultIndex).toArrayLike(Buffer, "le", 8)],
+      [
+        Buffer.from("vault"),
+        new BN(vaultIndex).toArrayLike(Buffer, 'le', 8)
+      ],
       vaultProgram.programId
     );
     console.log("Vault PDA:", vaultPDA.toBase58());
-    await sleep(500);
 
-    // Derive strategy PDA
+    // Derive strategy PDA using vaultIndex
     const [strategy] = anchor.web3.PublicKey.findProgramAddressSync(
-      [vaultPDA.toBuffer(), new BN(vaultIndex).toArrayLike(Buffer, "le", 8)],
+      [vaultPDA.toBuffer(), 
+        new BN(vaultIndex).toArrayLike(Buffer, 'le', 8)
+      ],
       strategyProgram.programId
     );
     console.log("Strategy PDA:", strategy.toBase58());
-    await sleep(500);
 
-    // Strategy token account
+    // Get strategy token account
     const strategyTokenAccount = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("underlying"), strategy.toBuffer()],
-      strategyProgram.programId
+      strategyProgram.programId,
     )[0];
-    console.log("Strategy Token Account:", strategyTokenAccount.toBase58());
-    await sleep(500);
 
-    // Load the LUT
-    const ALT_FILE = path.join(__dirname, "ALT", "ALT.json");
-    const ALT_CONFIG = JSON.parse(fs.readFileSync(ALT_FILE, "utf8"));
+    // Load Address Lookup Table
+    const ALT_FILE = path.join(__dirname, 'ALT', 'ALT.json');
+    const ALT_CONFIG = JSON.parse(fs.readFileSync(ALT_FILE, 'utf8'));
     console.log("Using Address Lookup Table:", ALT_CONFIG.lookupTableAddress);
-    await sleep(500);
 
-    const lookupTableAccount = await provider.connection
-      .getAddressLookupTable(new PublicKey(ALT_CONFIG.lookupTableAddress))
-      .then(res => res.value);
-    await sleep(1000);
+    const lookupTableAccount = await provider.connection.getAddressLookupTable(
+      new PublicKey(ALT_CONFIG.lookupTableAddress)
+    ).then(res => res.value);
 
     if (!lookupTableAccount) {
       throw new Error("Lookup table not found");
     }
 
-    // Deploy amount
+    // Define deploy amount
     const deployAmount = new BN(1).mul(new BN(10).pow(new BN(6))); // 1 USDC
 
-    // Log initial USDC balance
+    // Log initial USDC balances
     const initialStrategyUsdc = await provider.connection.getTokenAccountBalance(strategyTokenAccount);
     console.log("\nInitial Balances:");
+    console.log("Strategy Token Account:", strategyTokenAccount.toBase58());
     console.log("Strategy USDC:", initialStrategyUsdc.value.uiAmount);
-    await sleep(1000);
 
-    // Check each asset’s strategy account balance (with short delay in each iteration)
+    // Check strategy's asset token account balances before deployment
     console.log("\nStrategy's asset token account balances before deployment:");
     for (const [symbol, asset] of Object.entries(CONFIG.mints.assets)) {
       const assetMint = new PublicKey(asset.address);
+      
+      // Get strategy's token account for this asset using same seeds as init_token_account.rs
       const [strategyAssetAccount] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
+        [
+          Buffer.from("token_account"),
+          assetMint.toBuffer(),
+          strategy.toBuffer()
+        ],
         strategyProgram.programId
       );
 
       try {
         const balance = await provider.connection.getTokenAccountBalance(strategyAssetAccount);
-        console.log(`${symbol} =>`, {
+        console.log(`${symbol} Balance:`, {
           address: strategyAssetAccount.toBase58(),
           amount: balance.value.uiAmount,
           decimals: balance.value.decimals
         });
       } catch (error) {
-        console.log(`${symbol} => token account not yet initialized:`, strategyAssetAccount.toBase58());
+        console.log(`${symbol} token account not yet initialized:`, strategyAssetAccount.toBase58());
       }
-      await sleep(800);
     }
 
-    // Prepare remaining accounts
+    // Collect remaining accounts
     const combinedRemainingAccounts = [];
 
     for (const [symbol, asset] of Object.entries(CONFIG.mints.assets)) {
       const assetMint = new PublicKey(asset.address);
       const whirlpoolAddress = new PublicKey(asset.pool.id);
-
+      
+      // Get strategy token account and invest tracker
       const [strategyAssetAccount] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
@@ -184,20 +185,19 @@ async function main() {
         strategyProgram.programId
       );
 
-      // get invest tracker + short delay
+      // Get invest tracker data
       const investTracker = await strategyProgram.account.investTracker.fetch(investTrackerAccount);
-      await sleep(500);
-
-      // tokenAccount order
+      
+      // Determine account order based on a_to_b_for_purchase
       const [tokenAccountA, tokenAccountB] = investTracker.aToBForPurchase
         ? [strategyTokenAccount, strategyAssetAccount]
         : [strategyAssetAccount, strategyTokenAccount];
 
+      // Log invest tracker data
       console.log(`\nInvest Tracker for ${symbol}:`, formatInvestTrackerData(investTracker));
-      await sleep(500);
 
-      // Hard-coded tick arrays
-      let tickArrayAddresses: string[];
+      // Get tick arrays based on pool ID
+      let tickArrayAddresses;
       switch (asset.pool.id) {
         case '8QaXeHBrShJTdtN1rWCccBxpSVvKksQ2PCu5nufb2zbk': //BONK
           tickArrayAddresses = [
@@ -293,6 +293,7 @@ async function main() {
           throw new Error(`No tick arrays defined for pool: ${asset.pool.id}`);
       }
 
+      // Add accounts in the correct order
       const remainingAccountsForAsset = [
         { pubkey: WHIRLPOOL_PROGRAM_ID, isWritable: false, isSigner: false },
         { pubkey: whirlpoolAddress, isWritable: true, isSigner: false },
@@ -300,14 +301,14 @@ async function main() {
         { pubkey: new PublicKey(asset.pool.token_vault_a), isWritable: true, isSigner: false },
         { pubkey: tokenAccountB, isWritable: true, isSigner: false },
         { pubkey: new PublicKey(asset.pool.token_vault_b), isWritable: true, isSigner: false },
-        ...tickArrayAddresses.map(addr => ({
-          pubkey: new PublicKey(addr),
-          isWritable: true,
-          isSigner: false
+        ...tickArrayAddresses.map(addr => ({ 
+          pubkey: new PublicKey(addr), 
+          isWritable: true, 
+          isSigner: false 
         })),
         { pubkey: new PublicKey(asset.pool.oracle), isWritable: true, isSigner: false },
         { pubkey: investTrackerAccount, isWritable: true, isSigner: false },
-        { pubkey: strategy, isWritable: true, isSigner: false }
+        { pubkey: strategy, isWritable: true, isSigner: false },
       ];
 
       combinedRemainingAccounts.push(...remainingAccountsForAsset);
@@ -324,73 +325,70 @@ async function main() {
       })
       .remainingAccounts(combinedRemainingAccounts)
       .instruction();
-    await sleep(500);
 
     // Add compute budget instructions
     const computeUnitIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 900_000 });
     const computePriceIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 });
-    await sleep(500);
 
-    // Build + send versioned transaction
+    // Build and send versioned transaction
     const { blockhash } = await provider.connection.getLatestBlockhash();
-    await sleep(500);
 
     const messageV0 = new TransactionMessage({
       payerKey: admin.publicKey,
       recentBlockhash: blockhash,
       instructions: [computeUnitIx, computePriceIx, deployFundsIx],
     }).compileToV0Message([lookupTableAccount]);
-    await sleep(500);
 
     const vtx = new VersionedTransaction(messageV0);
     vtx.sign([admin]);
-    await sleep(500);
 
     const sig = await provider.connection.sendTransaction(vtx);
     console.log("Deploy funds transaction sent:", sig);
-    await sleep(2000); // Wait 2s after sending
 
     // Wait for confirmation
     await provider.connection.confirmTransaction({
       signature: sig,
-      blockhash,
+      blockhash: blockhash,
       lastValidBlockHeight: await provider.connection.getBlockHeight()
     });
-    await sleep(2000); // Wait 2s after confirmation
+
     console.log("Transaction confirmed!");
 
     // Check final USDC balance
     const finalStrategyUsdc = await provider.connection.getTokenAccountBalance(strategyTokenAccount);
     console.log("\nFinal Balances:");
     console.log("Strategy USDC:", finalStrategyUsdc.value.uiAmount);
-    console.log("USDC Change:", finalStrategyUsdc.value.uiAmount! - initialStrategyUsdc.value.uiAmount!);
-    await sleep(1000);
+    console.log("USDC Change:", finalStrategyUsdc.value.uiAmount - initialStrategyUsdc.value.uiAmount);
 
-    // Check final balances for each asset
+    // Check strategy's asset token account balances after deployment
     console.log("\nStrategy's asset token account balances after deployment:");
     for (const [symbol, asset] of Object.entries(CONFIG.mints.assets)) {
       const assetMint = new PublicKey(asset.address);
+      
       const [strategyAssetAccount] = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
+        [
+          Buffer.from("token_account"),
+          assetMint.toBuffer(),
+          strategy.toBuffer()
+        ],
         strategyProgram.programId
       );
 
       try {
         const balance = await provider.connection.getTokenAccountBalance(strategyAssetAccount);
-        console.log(`${symbol} =>`, {
+        console.log(`${symbol} Balance:`, {
           address: strategyAssetAccount.toBase58(),
           amount: balance.value.uiAmount,
           decimals: balance.value.decimals
         });
       } catch (error) {
-        console.log(`${symbol} => not yet initialized:`, strategyAssetAccount.toBase58());
+        console.log(`${symbol} token account not yet initialized:`, strategyAssetAccount.toBase58());
       }
-      await sleep(800);
     }
 
   } catch (error) {
     console.error("Error occurred:", error);
-    if ("logs" in error) {
+    if ('logs' in error) {
       console.error("Program Logs:", error.logs);
     }
   }

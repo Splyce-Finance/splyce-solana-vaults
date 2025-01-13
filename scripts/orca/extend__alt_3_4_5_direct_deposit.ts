@@ -14,17 +14,24 @@ import {
   SystemProgram,
   VersionedTransaction,
   TransactionMessage,
+  AddressLookupTableProgram,
+  Keypair,
 } from "@solana/web3.js";
-import * as dotenv from 'dotenv';
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import * as dotenv from "dotenv";
+import {
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddress,
+  getOrCreateAssociatedTokenAccount,
+} from "@solana/spl-token";
 
 // Load environment variables
 dotenv.config();
 
 // Load deployment addresses based on environment
-const ADDRESSES_FILE = path.join(__dirname, 'deployment_addresses', 'addresses.json');
-const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
-const ENV = process.env.CLUSTER || 'devnet';
+const ADDRESSES_FILE = path.join(__dirname, "deployment_addresses", "addresses.json");
+const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, "utf8"));
+const ENV = process.env.CLUSTER || "devnet";
 
 interface AssetConfig {
   address: string;
@@ -60,74 +67,65 @@ interface Config {
 }
 
 const CONFIG = ADDRESSES[ENV] as Config;
-
 if (!CONFIG) {
   throw new Error(`No configuration found for environment: ${ENV}`);
 }
 
 // Get program IDs from config
 const WHIRLPOOL_PROGRAM_ID = new PublicKey(CONFIG.programs.whirlpool_program);
-
-// Get underlying token mint
 const UNDERLYING_MINT = new PublicKey(CONFIG.mints.underlying.address);
 
 async function main() {
   try {
+    // ============================================
     // Setup Provider and Programs
+    // ============================================
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
 
     // Load admin keypair
     const secretKeyPath = path.resolve(process.env.HOME!, ".config/solana/mainnet.json");
-    const secretKey = new Uint8Array(JSON.parse(fs.readFileSync(secretKeyPath, 'utf8')));
+    const secretKey = new Uint8Array(JSON.parse(fs.readFileSync(secretKeyPath, "utf8")));
     const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
 
     const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
     const strategyProgram = anchor.workspace.Strategy as Program<Strategy>;
 
-    // Get vault PDA
+    // ============================================
+    // Derive PDAs
+    // ============================================
     const vaultIndex = 2;
     const [vaultPDA] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("vault"),
-        Buffer.from(new Uint8Array(new BigUint64Array([BigInt(vaultIndex)]).buffer))
+        Buffer.from(new Uint8Array(new BigUint64Array([BigInt(vaultIndex)]).buffer)),
       ],
       vaultProgram.programId
     );
-
     console.log("Vault PDA:", vaultPDA.toBase58());
 
-    // Get strategy PDA (using vaultIndex instead of hardcoded 0)
     const [strategy] = anchor.web3.PublicKey.findProgramAddressSync(
-      [vaultPDA.toBuffer(), new BN(vaultIndex).toArrayLike(Buffer, 'le', 8)],
+      [vaultPDA.toBuffer(), new BN(vaultIndex).toArrayLike(Buffer, "le", 8)],
       strategyProgram.programId
     );
-
     console.log("Strategy PDA:", strategy.toBase58());
 
-    // Get shares mint PDA
+    // Shares Mint
     const [sharesMint] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("shares"), vaultPDA.toBuffer()],
       vaultProgram.programId
     );
-    
-    // Get user's token accounts
-    const userUsdcATA = await getAssociatedTokenAddress(UNDERLYING_MINT, admin.publicKey);
 
+    // User token accounts
+    const userUsdcATA = await getAssociatedTokenAddress(UNDERLYING_MINT, admin.publicKey);
     const userSharesATA = await getOrCreateAssociatedTokenAccount(
       provider.connection,
       admin,
       sharesMint,
-      admin.publicKey,
-      false,
-      undefined,
-      undefined,
-      TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      admin.publicKey
     );
 
-
-    // Get vault and strategy token accounts
+    // Vault & Strategy token accounts
     const vaultUsdcATA = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("underlying"), vaultPDA.toBuffer()],
       vaultProgram.programId
@@ -138,59 +136,36 @@ async function main() {
       strategyProgram.programId
     )[0];
 
-    // Modify the remaining accounts generation
+    // ============================================
+    // Build combinedRemainingAccounts
+    // ============================================
     const combinedRemainingAccounts = [];
 
     for (const [symbol, asset] of Object.entries(CONFIG.mints.assets)) {
       const assetMint = new PublicKey(asset.address);
       const whirlpoolAddress = new PublicKey(asset.pool.id);
-      
-      // Get strategy token account and invest tracker
+
+      // Strategy's asset account
       const [strategyAssetAccount] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
       );
 
+      // Invest tracker
       const [investTrackerAccount] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("invest_tracker"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
       );
 
-      // Get invest tracker data first
+      // Get investTracker to see if a_to_b_for_purchase
       const investTracker = await strategyProgram.account.investTracker.fetch(investTrackerAccount);
-      
-      // Determine account order based on a_to_b_for_purchase
       const [tokenAccountA, tokenAccountB] = investTracker.aToBForPurchase
         ? [strategyTokenAccount, strategyAssetAccount]
         : [strategyAssetAccount, strategyTokenAccount];
 
-      // Add logging for invest tracker PDA
-      console.log(`\nInvest Tracker PDA for ${symbol}:`);
-      console.log("Asset Mint:", assetMint.toBase58());
-      console.log("Strategy:", strategy.toBase58());
-      console.log("Invest Tracker Account:", investTrackerAccount.toBase58());
-      
-      // Verify the invest tracker account exists and fetch its data
-      try {
-        const trackerAccount = await strategyProgram.account.investTracker.fetch(investTrackerAccount);
-        console.log("Invest Tracker Data:", {
-          whirlpoolId: trackerAccount.whirlpoolId.toString(),
-          assetMint: trackerAccount.assetMint.toString(),
-          amountInvested: trackerAccount.amountInvested.toString(),
-          amountWithdrawn: trackerAccount.amountWithdrawn.toString(),
-          assetAmount: trackerAccount.assetAmount.toString(),
-          assetPrice: trackerAccount.assetPrice.toString(),
-          sqrtPrice: trackerAccount.sqrtPrice.toString(),
-          assetValue: trackerAccount.assetValue.toString(),
-          aToBForPurchase: trackerAccount.aToBForPurchase,
-          assignedWeight: trackerAccount.assignedWeight,
-          currentWeight: trackerAccount.currentWeight
-        });
-      } catch (error) {
-        console.error(`Failed to fetch invest tracker for ${symbol}:`, error);
-      }
+      console.log(`\nInvest Tracker for ${symbol}:`, investTrackerAccount.toBase58());
+      console.log("aToBForPurchase:", investTracker.aToBForPurchase);
 
-      // Select the correct tick arrays based on pool ID
       let tickArrayAddresses;
       switch (asset.pool.id) {
         case '8QaXeHBrShJTdtN1rWCccBxpSVvKksQ2PCu5nufb2zbk': //BONK
@@ -246,10 +221,10 @@ async function main() {
         { pubkey: new PublicKey(asset.pool.token_vault_a), isWritable: true, isSigner: false },
         { pubkey: tokenAccountB, isWritable: true, isSigner: false },
         { pubkey: new PublicKey(asset.pool.token_vault_b), isWritable: true, isSigner: false },
-        ...tickArrayAddresses.map(addr => ({ 
-          pubkey: new PublicKey(addr), 
-          isWritable: true, 
-          isSigner: false 
+        ...tickArrayAddresses.map((addr) => ({
+          pubkey: new PublicKey(addr),
+          isWritable: true,
+          isSigner: false,
         })),
         { pubkey: new PublicKey(asset.pool.oracle), isWritable: true, isSigner: false },
         { pubkey: investTrackerAccount, isWritable: true, isSigner: false },
@@ -259,7 +234,62 @@ async function main() {
       combinedRemainingAccounts.push(...remainingAccountsForAsset);
     }
 
-    // Log initial balances
+    // ============================================
+    // We gather *all* pubkeys from .accounts() + remainingAccounts
+    // ============================================
+    const allPubkeysForThisTx = new Set<string>();
+
+    // From the .accounts(...) object
+    const primaryAccounts = [
+      vaultPDA,
+      userUsdcATA,
+      userSharesATA.address,
+      strategy,
+      admin.publicKey,
+      UNDERLYING_MINT,
+    ];
+    for (const pk of primaryAccounts) {
+      allPubkeysForThisTx.add(pk.toBase58());
+    }
+
+    // From remainingAccounts
+    for (const acc of combinedRemainingAccounts) {
+      allPubkeysForThisTx.add(acc.pubkey.toBase58());
+    }
+
+    // Convert back to an array of PublicKeys
+    const allPubkeysArr = [...allPubkeysForThisTx].map((x) => new PublicKey(x));
+    console.log(`\nTotal unique addresses used in directDeposit: ${allPubkeysArr.length}`);
+
+    // ============================================
+    // read & possibly extend the LUT
+    // ============================================
+    const altJsonPath = path.join(__dirname, "ALT", "ALT_index2Meme.json");
+    const altJson = JSON.parse(fs.readFileSync(altJsonPath, "utf8"));
+
+    const lutAddress = new PublicKey(altJson.lookupTableAddress);
+    console.log("Using LUT:", lutAddress.toBase58());
+
+    let lutAccountInfo = (await provider.connection.getAddressLookupTable(lutAddress)).value;
+    if (!lutAccountInfo) {
+      throw new Error(`Lookup table not found: ${lutAddress.toBase58()}`);
+    }
+
+    // Extend LUT if needed
+    await extendLUTIfNeeded(provider.connection, admin, lutAddress, allPubkeysArr);
+
+    // Wait a slot so newly added addresses are recognized
+    await waitOneSlot(provider.connection);
+
+    // Re-fetch the LUT
+    lutAccountInfo = (await provider.connection.getAddressLookupTable(lutAddress)).value;
+    if (!lutAccountInfo) {
+      throw new Error("LUT not found after extension/wait!");
+    }
+
+    // ============================================
+    // Log initial balances, etc.
+    // ============================================
     const initialBalances = {
       userUsdc: await provider.connection.getTokenAccountBalance(userUsdcATA),
       userShares: await provider.connection.getTokenAccountBalance(userSharesATA.address),
@@ -271,68 +301,33 @@ async function main() {
     console.log("User USDC:", initialBalances.userUsdc.value.uiAmount);
     console.log("User Shares:", initialBalances.userShares.value.uiAmount);
     console.log("Vault USDC:", initialBalances.vaultUsdc.value.uiAmount);
-    console.log("Strategy Token Account:", strategyTokenAccount.toBase58());
     console.log("Strategy USDC:", initialBalances.strategyUsdc.value.uiAmount);
 
-    // Check strategy's asset token account balances before direct deposit
-    console.log("\nStrategy's asset token account balances before direct deposit:");
+    // Show strategy's asset token account balances before direct deposit
+    console.log("\nStrategy's asset token account balances (before deposit):");
     for (const [symbol, asset] of Object.entries(CONFIG.mints.assets)) {
       const assetMint = new PublicKey(asset.address);
-      
-      // Get strategy's token account for this asset using same seeds as init_token_account.rs
       const [strategyAssetAccount] = anchor.web3.PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("token_account"),
-          assetMint.toBuffer(),
-          strategy.toBuffer()
-        ],
+        [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
       );
-
       try {
         const balance = await provider.connection.getTokenAccountBalance(strategyAssetAccount);
-        console.log(`${symbol} Balance:`, {
-          address: strategyAssetAccount.toBase58(),
+        console.log(`${symbol} =>`, {
+          account: strategyAssetAccount.toBase58(),
           amount: balance.value.uiAmount,
-          decimals: balance.value.decimals
         });
-      } catch (error) {
-        console.log(`${symbol} token account not yet initialized:`, strategyAssetAccount.toBase58());
+      } catch {
+        console.log(`${symbol} => not initialized: ${strategyAssetAccount.toBase58()}`);
       }
     }
 
-    // Read lookup table address from ALT.json
-    const altJsonPath = path.join(__dirname, 'ALT', 'ALT_index2Meme.json');
-    const altJson = JSON.parse(fs.readFileSync(altJsonPath, 'utf8'));
-    
-    // Load the lookup table
-    const lookupTableAccount = (
-      await provider.connection.getAddressLookupTable(new PublicKey(altJson.lookupTableAddress))
-    ).value;
-    
-    if (!lookupTableAccount) {
-      throw new Error(`Lookup table not found for address: ${altJson.lookupTableAddress}`);
-    }
-
-    console.log("Loaded lookup table:", altJson.lookupTableAddress);
-
-    // Define deposit amount (1 USDC)
+    // ============================================
+    // Build the directDeposit instruction
+    // ============================================
+    // Suppose deposit = 1 USDC
     const depositAmount = new BN(1).mul(new BN(10).pow(new BN(6)));
 
-    // Set compute unit limit
-    const computeUnitIx = ComputeBudgetProgram.setComputeUnitLimit({
-      units: 600_000,
-    });
-
-    // Set compute unit price
-    const computePriceIx = ComputeBudgetProgram.setComputeUnitPrice({
-      microLamports: 1,
-    });
-
-    // Get latest blockhash before creating transaction
-    const latestBlockhash = await provider.connection.getLatestBlockhash();
-
-    // Build the instruction for direct deposit
     const depositIx = await vaultProgram.methods
       .directDeposit(depositAmount)
       .accounts({
@@ -346,31 +341,32 @@ async function main() {
       .remainingAccounts(combinedRemainingAccounts)
       .instruction();
 
-    // Create a TransactionMessage with the lookup table
+    // Add compute budget instructions
+    const computeUnitIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 });
+    const computePriceIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 });
+
+    // ============================================
+    // Build + send Versioned Transaction
+    // ============================================
+    const latestBlockhash = await provider.connection.getLatestBlockhash();
     const messageV0 = new TransactionMessage({
       payerKey: admin.publicKey,
       recentBlockhash: latestBlockhash.blockhash,
       instructions: [computeUnitIx, computePriceIx, depositIx],
-    }).compileToV0Message([lookupTableAccount]);
+    }).compileToV0Message([lutAccountInfo]); // references the LUT
 
-    console.log("Lookup table account:", lookupTableAccount);
-    
-    // Create VersionedTransaction
     const transaction = new VersionedTransaction(messageV0);
-
-    // Sign the transaction
     transaction.sign([admin]);
 
-    // Send the transaction
     const txid = await provider.connection.sendTransaction(transaction);
-
     console.log("Direct deposit transaction executed successfully. Txid:", txid);
 
-    // Wait for confirmation
     const confirmation = await provider.connection.confirmTransaction(txid, "confirmed");
     console.log("Transaction confirmed:", confirmation);
 
-    // Log final balances and fetch all asset balances
+    // ============================================
+    // Final balances
+    // ============================================
     const finalBalances = {
       userUsdc: await provider.connection.getTokenAccountBalance(userUsdcATA),
       userShares: await provider.connection.getTokenAccountBalance(userSharesATA.address),
@@ -390,21 +386,15 @@ async function main() {
     console.log("Vault USDC:", finalBalances.vaultUsdc.value.uiAmount! - initialBalances.vaultUsdc.value.uiAmount!);
     console.log("Strategy USDC:", finalBalances.strategyUsdc.value.uiAmount! - initialBalances.strategyUsdc.value.uiAmount!);
 
-    // Log final balances for each asset
+    // Strategy asset token accounts after deposit
     for (const [symbol, asset] of Object.entries(CONFIG.mints.assets)) {
       const assetMint = new PublicKey(asset.address);
-      
       const [strategyAssetAccount] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
       );
-
       const [investTrackerAccount] = anchor.web3.PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("invest_tracker"), 
-          assetMint.toBuffer(), 
-          strategy.toBuffer()
-        ],
+        [Buffer.from("invest_tracker"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
       );
 
@@ -420,16 +410,86 @@ async function main() {
         assetPrice: investTracker.assetPrice.toString(),
         aToBForPurchase: investTracker.aToBForPurchase,
         assignedWeight: investTracker.assignedWeight,
-        currentWeight: investTracker.currentWeight
+        currentWeight: investTracker.currentWeight,
       });
     }
-
   } catch (error) {
     console.error("Error occurred:", error);
-    if ('logs' in error) {
+    if ("logs" in error) {
       console.error("Program Logs:", error.logs);
     }
+    process.exit(1);
   }
+}
+
+// ============================================
+// Helper to extend the LUT if new addresses are needed
+// ============================================
+async function extendLUTIfNeeded(
+  connection: Connection,
+  payer: Keypair,
+  lutAddress: PublicKey,
+  addresses: PublicKey[]
+) {
+  // Fetch the LUT
+  const lutAccountResult = await connection.getAddressLookupTable(lutAddress);
+  if (!lutAccountResult?.value) {
+    throw new Error("Cannot fetch LUT from chain. Possibly not created?");
+  }
+  const existingAddrs = new Set(lutAccountResult.value.state.addresses.map((x) => x.toBase58()));
+
+  // Filter out addresses we already have
+  const newAddrs = addresses.filter((pk) => !existingAddrs.has(pk.toBase58()));
+  if (newAddrs.length === 0) {
+    console.log("No new addresses to add to LUT.");
+    return;
+  }
+
+  console.log(`Extending LUT with ${newAddrs.length} addresses...`);
+
+  // Each extension can only hold ~30 addresses
+  // So we chunk them if needed
+  let start = 0;
+  const CHUNK_SIZE = 30;
+  while (start < newAddrs.length) {
+    const chunk = newAddrs.slice(start, start + CHUNK_SIZE);
+    start += CHUNK_SIZE;
+
+    const extendIx = AddressLookupTableProgram.extendLookupTable({
+      payer: payer.publicKey,
+      authority: payer.publicKey,
+      lookupTable: lutAddress,
+      addresses: chunk,
+    });
+
+    const { blockhash } = await connection.getLatestBlockhash();
+    const msg = new TransactionMessage({
+      payerKey: payer.publicKey,
+      recentBlockhash: blockhash,
+      instructions: [extendIx],
+    }).compileToV0Message([]);
+    const vtx = new VersionedTransaction(msg);
+    vtx.sign([payer]);
+
+    const sig = await connection.sendTransaction(vtx);
+    console.log("Extend LUT tx:", sig);
+    await connection.confirmTransaction(sig, "confirmed");
+  }
+
+  console.log("All required addresses successfully added to LUT.");
+}
+
+// ============================================
+// Helper to wait one slot
+// ============================================
+async function waitOneSlot(connection: Connection) {
+  const startSlot = await connection.getSlot();
+  let newSlot = startSlot;
+  while (newSlot <= startSlot) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    newSlot = await connection.getSlot();
+  }
+  console.log(`Waited 1 slot. Now at slot=${newSlot}. LUT is warmed up.`);
 }
 
 main().catch((err) => {

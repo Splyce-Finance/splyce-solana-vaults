@@ -27,7 +27,7 @@
     "rebalance": "npx ts-node scripts/orca/9_rebalance.ts",
     "report_profit": "npx ts-node scripts/orca/10_report_profit.ts",
     "get_tick_arrays": "npx ts-node scripts/orca/11_get_tick_arrays.ts",
-    "create_ALT_for_orca": "npx ts-node scripts/orca/ALT/create_ALT_for_orca.ts",
+    "create_ALT_for_orca": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/create_ALT_for_orca.ts",
     "create_multiple_ALT": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/create_multiple_ALT.ts || (sleep 2 && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/create_multiple_ALT.ts) || (sleep 2 && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/create_multiple_ALT.ts) || (sleep 2 && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/create_multiple_ALT.ts) || (sleep 2 && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/create_multiple_ALT.ts)",
     "clean": "anchor clean && rm -rf target/*",
     "build": "anchor build",
@@ -36,14 +36,17 @@
     "init_scripts": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/0_init_orca_strategy.ts && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/1_init_token_account.ts && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/2_init_invest_tracker.ts",
     "0_init_orca_strategy": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/0_init_orca_strategy.ts",
     "1_init_token_account": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/1_init_token_account.ts",
+    "1_init_token_account_betterEndpoint": "ANCHOR_PROVIDER_URL=\"https://lb.drpc.org/ogrpc?network=solana&dkey=AheAchnn1UOZi_R04vyK20CGQ5z8e-kR75CahlDYfw4q\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/1_init_token_account.ts",
     "2_init_invest_tracker": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/2_init_invest_tracker.ts",
+    "2_init_invest_tracker_betterEndpoint": "ANCHOR_PROVIDER_URL=\"https://lb.drpc.org/ogrpc?network=solana&dkey=AheAchnn1UOZi_R04vyK20CGQ5z8e-kR75CahlDYfw4q\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/2_init_invest_tracker.ts",
     "3_4_5_direct_deposit": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/3_4_5_direct_deposit.ts",
     "3_4_5_direct_deposit_betterEndpoint": "ANCHOR_PROVIDER_URL=\"https://lb.drpc.org/ogrpc?network=solana&dkey=AheAchnn1UOZi_R04vyK20CGQ5z8e-kR75CahlDYfw4q\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/3_4_5_direct_deposit.ts",
-
+    "extend_ALT_3_4_5_direct_deposit": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/extend__alt_3_4_5_direct_deposit.ts",
     "3_deposit_update": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/3_deposit_update.ts",
     "4_updateDebt": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/4_updateDebt.ts",
     "4_updateDebt_betterEndpoint": "ANCHOR_PROVIDER_URL=\"https://lb.drpc.org/ogrpc?network=solana&dkey=AheAchnn1UOZi_R04vyK20CGQ5z8e-kR75CahlDYfw4q\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/4_updateDebt.ts",
-
+    "5_deploy_funds": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/5_deploy_funds.ts",
+    "5_deploy_funds_betterEndpoint": "ANCHOR_PROVIDER_URL=\"https://lb.drpc.org/ogrpc?network=solana&dkey=AheAchnn1UOZi_R04vyK20CGQ5z8e-kR75CahlDYfw4q\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/5_deploy_funds.ts",
     "extend_ALT": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/extend_ALT.ts",
     "init_scripts": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/0_init_orca_strategy.ts && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/1_init_token_account.ts && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/2_init_invest_tracker.ts",
 

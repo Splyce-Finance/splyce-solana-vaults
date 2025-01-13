@@ -24,7 +24,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // Load deployment addresses based on environment
-const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'addresses.json');
+const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'abridged_10_assets_addresses.json');
 const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
 const ENV = process.env.CLUSTER || 'devnet';
 

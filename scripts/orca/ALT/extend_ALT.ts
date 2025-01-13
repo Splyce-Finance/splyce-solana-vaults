@@ -4,24 +4,19 @@ import { TokenizedVault } from "../../../target/types/tokenized_vault";
 import { Strategy } from "../../../target/types/strategy";
 import * as fs from "fs";
 import * as path from "path";
-import { PublicKey } from "@solana/web3.js";
-import {
-  Connection,
-  AddressLookupTableProgram,
-} from "@solana/web3.js";
-import * as dotenv from 'dotenv';
+import { PublicKey, Connection, AddressLookupTableProgram } from "@solana/web3.js";
+import * as dotenv from "dotenv";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
-// Load environment variables
 dotenv.config();
 
-// Load deployment addresses based on environment
-const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses.json');
-const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
-const ENV = process.env.CLUSTER || 'devnet';
+const ADDRESSES_FILE = path.join(__dirname, "..", "deployment_addresses", "abridged_10_assets_addresses.json");
+const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, "utf8"));
+const ENV = process.env.CLUSTER || "devnet";
 
-// Load existing ALT address
-const ALT_FILE = path.join(__dirname, 'ALT.json');
-const ALT_CONFIG = JSON.parse(fs.readFileSync(ALT_FILE, 'utf8'));
+// We load an existing ALT address from "ALT.json"
+const ALT_FILE = path.join(__dirname, "ALT.json");
+const ALT_CONFIG = JSON.parse(fs.readFileSync(ALT_FILE, "utf8"));
 
 interface PoolConfig {
   id: string;
@@ -30,19 +25,16 @@ interface PoolConfig {
   oracle: string;
   tick_arrays: string[];
 }
-
 interface InvestmentConfig {
   a_to_b_for_purchase: boolean;
   assigned_weight_bps: number;
 }
-
 interface AssetConfig {
   address: string;
   decimals: number;
   pool: PoolConfig;
   investment_config: InvestmentConfig;
 }
-
 interface Config {
   programs: {
     whirlpool_program: string;
@@ -61,13 +53,15 @@ interface Config {
 }
 
 const CONFIG = ADDRESSES[ENV] as Config;
-
 if (!CONFIG) {
   throw new Error(`No configuration found for environment: ${ENV}`);
 }
 
 async function main() {
   try {
+    // --------------------------------------------
+    // Setup Anchor provider + load keypair
+    // --------------------------------------------
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
 
@@ -75,67 +69,51 @@ async function main() {
     const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
     const strategyProgram = anchor.workspace.Strategy as Program<Strategy>;
 
-    // Load admin keypair
-    const secretKeyPath = path.resolve(process.env.HOME!, `.config/solana/${ENV === 'mainnet' ? 'mainnet.json' : 'id.json'}`);
-    const secretKey = new Uint8Array(JSON.parse(fs.readFileSync(secretKeyPath, 'utf8')));
+    const secretKeyPath = path.resolve(
+      process.env.HOME!,
+      `.config/solana/${ENV === "mainnet" ? "mainnet.json" : "id.json"}`
+    );
+    const secretKey = new Uint8Array(JSON.parse(fs.readFileSync(secretKeyPath, "utf8")));
     const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
 
-    console.log(`Extending Address Lookup Table for ${ENV} environment`);
+    console.log(`\nExtending Address Lookup Table for ${ENV} environment.`);
     console.log("ALT Address:", ALT_CONFIG.lookupTableAddress);
 
-    // Load and log the initial ALT state
-    const initialLookupTableAccount = (
-      await provider.connection.getAddressLookupTable(new PublicKey(ALT_CONFIG.lookupTableAddress))
-    ).value;
-
+    // --------------------------------------------
+    // Fetch the existing LUT from chain
+    // --------------------------------------------
+    const lutPubkey = new PublicKey(ALT_CONFIG.lookupTableAddress);
+    const initialLookupTableAccount = (await connection.getAddressLookupTable(lutPubkey)).value;
     if (!initialLookupTableAccount) {
-      throw new Error("Lookup table not found");
+      throw new Error(`Lookup table not found at: ${lutPubkey.toBase58()}`);
     }
+    const originalCount = initialLookupTableAccount.state.addresses.length;
+    console.log("Current LUT count:", originalCount);
 
-    console.log("\nInitial ALT addresses:");
-    initialLookupTableAccount.state.addresses.forEach((addr, index) => {
-      console.log(`${index + 1}. ${addr.toBase58()}`);
-    });
-    console.log(`Total addresses in ALT before extension: ${initialLookupTableAccount.state.addresses.length}`);
-
-    // Define vault index (matching with init script)
-    const vaultIndex = 1; // Second vault
+    // --------------------------------------------
+    // Derive the same addresses as your "create LUT" script
+    // --------------------------------------------
+    const vaultIndex = 2; // or 1, etc.
     console.log("Using Vault Index:", vaultIndex);
 
-    // Get PDAs using vaultIndex
     const [vault] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("vault"),
-        new anchor.BN(vaultIndex).toArrayLike(Buffer, 'le', 8)
-      ],
+      [Buffer.from("vault"), new anchor.BN(vaultIndex).toArrayLike(Buffer, "le", 8)],
       vaultProgram.programId
     );
-    console.log("Vault PDA:", vault.toBase58());
-
     const [strategy] = anchor.web3.PublicKey.findProgramAddressSync(
-      [vault.toBuffer(), 
-        new anchor.BN(vaultIndex).toArrayLike(Buffer, 'le', 8)
-      ],
+      [vault.toBuffer(), new anchor.BN(vaultIndex).toArrayLike(Buffer, "le", 8)],
       strategyProgram.programId
     );
-    console.log("Strategy PDA:", strategy.toBase58());
-
-    const [strategyData] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("strategy_data"),
-        vault.toBuffer(),
-        strategy.toBuffer(),
-      ],
+    const [strategyData] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
       vaultProgram.programId
     );
-
     const [strategyTokenAccount] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("underlying"), strategy.toBuffer(), strategy.toBuffer()],
       strategyProgram.programId
     );
-    console.log("Strategy Data PDA:", strategyData.toBase58());
 
-    // Collect addresses for lookup table
+    // Gather addresses
     const newAddresses: PublicKey[] = [
       new PublicKey(CONFIG.programs.whirlpool_program),
       TOKEN_PROGRAM_ID,
@@ -145,131 +123,166 @@ async function main() {
       strategyTokenAccount,
     ];
 
-    // Add addresses for each configured asset
     for (const [symbol, asset] of Object.entries(CONFIG.mints.assets)) {
       const assetMint = new PublicKey(asset.address);
-      
-      // Add pool-related addresses
+      // Pool addresses
       newAddresses.push(
         new PublicKey(asset.pool.id),
         new PublicKey(asset.pool.token_vault_a),
         new PublicKey(asset.pool.token_vault_b),
         new PublicKey(asset.pool.oracle)
       );
-
-      // Add tick arrays
-      asset.pool.tick_arrays.forEach(tickArray => {
-        newAddresses.push(new PublicKey(tickArray));
+      // tick arrays
+      asset.pool.tick_arrays.forEach((tickAddr) => {
+        newAddresses.push(new PublicKey(tickAddr));
       });
-
-      // Add PDAs
+      // strategy PDAs
       const [strategyAssetAccount] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
       );
-
       const [investTracker] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from("invest_tracker"), assetMint.toBuffer(), strategy.toBuffer()],
         strategyProgram.programId
       );
 
-      console.log("Strategy Asset Account PDA:", strategyAssetAccount.toBase58());
-      console.log("Invest Tracker PDA:", investTracker.toBase58());
+      console.log(`\nAsset: ${symbol}`);
+      console.log("strategyAssetAccount:", strategyAssetAccount.toBase58());
+      console.log("investTracker:", investTracker.toBase58());
 
       newAddresses.push(strategyAssetAccount, investTracker);
     }
 
-    // Get existing ALT account to check current addresses
-    const lookupTableAccount = await connection.getAddressLookupTable(new PublicKey(ALT_CONFIG.lookupTableAddress));
-    if (!lookupTableAccount.value) {
-      throw new Error("Lookup table not found");
+    // Filter out duplicates and already in ALT
+    const existingSet = new Set(initialLookupTableAccount.state.addresses.map((pk) => pk.toBase58()));
+    const dedupSet = new Set<string>();
+    const toAddFull: PublicKey[] = [];
+    for (const pk of newAddresses) {
+      const s = pk.toBase58();
+      if (!dedupSet.has(s)) {
+        dedupSet.add(s);
+        if (!existingSet.has(s)) {
+          toAddFull.push(pk);
+        }
+      }
     }
 
-    const existingAddresses = lookupTableAccount.value.state.addresses.map(addr => addr.toBase58());
-    console.log("\nExisting addresses in ALT:", existingAddresses.length);
-
-    // Filter out addresses that already exist in the ALT
-    const addressesToAdd = newAddresses.filter(
-      addr => !existingAddresses.includes(addr.toBase58())
-    );
-
-    if (addressesToAdd.length === 0) {
-      console.log("No new addresses to add to the lookup table.");
+    if (toAddFull.length === 0) {
+      console.log("No new addresses to add! Exiting.");
       return;
     }
+    console.log(`\nWe have ${toAddFull.length} addresses missing in the LUT.`);
 
-    console.log(`\nAdding ${addressesToAdd.length} new addresses to lookup table...`);
-    console.log("\nAddresses being added:");
-    addressesToAdd.forEach((addr, index) => {
-      console.log(`${index + 1}. ${addr.toBase58()}`);
-    });
-
-    // Extend table with new addresses in chunks
+    // --------------------------------------------
+    // Extend the LUT in chunks, with a re-check after any timeouts
+    // --------------------------------------------
     const chunkSize = 20;
-    for (let i = 0; i < addressesToAdd.length; i += chunkSize) {
-      const chunk = addressesToAdd.slice(i, Math.min(i + chunkSize, addressesToAdd.length));
-      const extendIx = AddressLookupTableProgram.extendLookupTable({
-        payer: admin.publicKey,
-        authority: admin.publicKey,
-        lookupTable: new PublicKey(ALT_CONFIG.lookupTableAddress),
-        addresses: chunk
-      });
+    let startIndex = 0;
+    let chunkNumber = 1;
 
-      await provider.sendAndConfirm(new anchor.web3.Transaction().add(extendIx), [admin]);
-      console.log(`Added chunk ${Math.floor(i / chunkSize) + 1}: addresses ${i + 1} to ${i + chunk.length} (${chunk.length} addresses)`);
+    // We'll keep a local "toAdd" pointer that we update each chunk
+    // in case we need to re-check after a timeout
+    while (startIndex < toAddFull.length) {
+      // slice out the chunk
+      const chunk = toAddFull.slice(startIndex, startIndex + chunkSize);
+      const chunkStart = startIndex;
+      startIndex += chunk.length;
+
+      console.log(`\nExtending LUT with chunk #${chunkNumber} [size=${chunk.length}] ...`);
+      chunkNumber++;
+
+      // We'll keep trying to send this chunk until it's empty or successful
+      while (true) {
+        // If chunk is empty, skip
+        if (chunk.length === 0) {
+          console.log("All addresses in this chunk are already added. Moving on.");
+          break;
+        }
+
+        // build the extend instruction
+        const extendIx = AddressLookupTableProgram.extendLookupTable({
+          authority: admin.publicKey,
+          payer: admin.publicKey,
+          lookupTable: lutPubkey,
+          addresses: chunk,
+        });
+        const tx = new anchor.web3.Transaction().add(extendIx);
+
+        try {
+          await provider.sendAndConfirm(tx, [admin]);
+          console.log(
+            `  => Extended with addresses ${chunkStart + 1}..${chunkStart + chunk.length}.`
+          );
+          break; // success -> go next chunk
+        } catch (err: any) {
+          if (err.name === "TransactionExpiredTimeoutError") {
+            console.error("Tx timed out. Re-checking LUT + waiting 10 seconds...");
+
+            // Wait 10 seconds
+            await new Promise((resolve) => setTimeout(resolve, 10_000));
+
+            // Re-fetch LUT from chain
+            const altAccount = (await connection.getAddressLookupTable(lutPubkey)).value;
+            if (!altAccount) {
+              console.error("Failed to refetch LUT? Will keep chunk as is and retry.");
+              continue; // try again
+            }
+
+            // remove any newly included addresses from chunk
+            const altSet = new Set(altAccount.state.addresses.map((pk) => pk.toBase58()));
+            const remain: PublicKey[] = [];
+            for (const addr of chunk) {
+              if (!altSet.has(addr.toBase58())) {
+                remain.push(addr);
+              } else {
+                console.log(`    Skipping ${addr.toBase58()} - already in LUT now.`);
+              }
+            }
+            chunk.length = 0; // clear chunk
+            chunk.push(...remain); // re-inject only the still-missing
+            console.log(`    Re-trimmed chunk size: ${chunk.length}.`);
+            // => loop again
+          } else {
+            throw err; // some other error -> fatal
+          }
+        }
+      } // end while-true
+
+      // after chunk is done, wait 1 block
       await waitForNewBlock(connection, 1);
-    }
+    } // end while (startIndex < ...)
 
-    // After extension, fetch and log the final state
-    const finalLookupTableAccount = (
-      await provider.connection.getAddressLookupTable(new PublicKey(ALT_CONFIG.lookupTableAddress))
-    ).value;
-
+    // --------------------------------------------
+    // Final check
+    // --------------------------------------------
+    const finalLookupTableAccount = (await connection.getAddressLookupTable(lutPubkey)).value;
     if (!finalLookupTableAccount) {
-      throw new Error("Failed to fetch final lookup table state");
+      throw new Error("Failed to fetch final LUT after extension!");
     }
-
-    console.log("\nFinal ALT addresses after extension:");
-    finalLookupTableAccount.state.addresses.forEach((addr, index) => {
-      console.log(`${index + 1}. ${addr.toBase58()}`);
-    });
-    console.log(`Total addresses in ALT after extension: ${finalLookupTableAccount.state.addresses.length}`);
-
-    // Log the newly added addresses
-    if (finalLookupTableAccount.state.addresses.length > initialLookupTableAccount.state.addresses.length) {
-      console.log("\nNewly added addresses:");
-      const newAddressesCount = finalLookupTableAccount.state.addresses.length - initialLookupTableAccount.state.addresses.length;
-      finalLookupTableAccount.state.addresses.slice(-newAddressesCount).forEach((addr, index) => {
-        console.log(`${index + 1}. ${addr.toBase58()}`);
-      });
-    }
-
+    const finalCount = finalLookupTableAccount.state.addresses.length;
+    console.log(
+      `\nSuccessfully extended LUT. Count: from ${originalCount} -> ${finalCount} addresses.`
+    );
+    console.log("Done.");
   } catch (error) {
     console.error("Error occurred:", error);
-    if ('logs' in error) {
+    if ("logs" in error) {
       console.error("Program Logs:", error.logs);
     }
+    process.exit(1);
   }
 }
 
-async function waitForNewBlock(
-  connection: Connection,
-  targetBlocks: number,
-): Promise<void> {
-  console.log(`Waiting for ${targetBlocks} new block(s)...`);
-  const initialSlot = await connection.getSlot();
+// A helper to wait 1 block
+async function waitForNewBlock(connection: Connection, blocksToWait: number): Promise<void> {
+  console.log(`Waiting for ${blocksToWait} block(s)...`);
+  const startSlot = await connection.getSlot();
   return new Promise((resolve) => {
     const interval = setInterval(async () => {
-      try {
-        const currentSlot = await connection.getSlot();
-        if (currentSlot >= initialSlot + targetBlocks) {
-          clearInterval(interval);
-          console.log(`New block(s) reached. Current slot: ${currentSlot}`);
-          resolve();
-        }
-      } catch (error) {
-        console.error("Error while fetching slot:", error);
+      const currentSlot = await connection.getSlot();
+      if (currentSlot >= startSlot + blocksToWait) {
         clearInterval(interval);
+        console.log(`  => Next slot reached: ${currentSlot}`);
         resolve();
       }
     }, 1000);
@@ -279,4 +292,4 @@ async function waitForNewBlock(
 main().catch((err) => {
   console.error(err);
   process.exit(1);
-}); 
+});

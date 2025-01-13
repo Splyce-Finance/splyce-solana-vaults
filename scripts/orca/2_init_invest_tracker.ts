@@ -11,7 +11,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // Load deployment addresses based on environment
-const ADDRESSES_FILE = path.join(__dirname, 'deployment_addresses', 'addresses.json');
+const ADDRESSES_FILE = path.join(__dirname, 'deployment_addresses', 'abridged_10_assets_addresses.json');
 const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
 const ENV = process.env.CLUSTER || 'devnet';
 const CONFIG = ADDRESSES[ENV];
@@ -75,7 +75,7 @@ async function main() {
     console.log(`Found ${assetSymbols.length} assets to initialize invest trackers for:`, assetSymbols);
 
     // Initialize invest trackers for each asset
-    for (const symbol of assetSymbols.slice(2)) {
+    for (const symbol of assetSymbols.slice(9)) {
       const assetConfig = assets[symbol];
       const assetMint = new PublicKey(assetConfig.address);
       const whirlpool = new PublicKey(assetConfig.pool.id);

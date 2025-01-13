@@ -429,8 +429,23 @@ async function main() {
     const sig = await provider.connection.sendTransaction(vtx);
     console.log("UpdateDebt transaction executed successfully. Txid:", sig);
 
-    const confirmation = await provider.connection.confirmTransaction(sig, "confirmed");
-    console.log("Transaction confirmed:", confirmation);
+    // Wait for confirmation
+    const confirmation = await provider.connection.confirmTransaction({
+      signature: sig,
+      blockhash: blockhash,
+      lastValidBlockHeight: await provider.connection.getBlockHeight()
+    }, "confirmed");
+
+    // Get transaction details with versioned transaction support
+    const txDetails = await provider.connection.getParsedTransaction(sig, {
+      maxSupportedTransactionVersion: 0
+    });
+
+    console.log("Transaction confirmed:", {
+      slot: txDetails?.slot,
+      blockTime: txDetails?.blockTime,
+      version: txDetails?.version
+    });
 
   } catch (err) {
     console.error("Error occurred:", err);
