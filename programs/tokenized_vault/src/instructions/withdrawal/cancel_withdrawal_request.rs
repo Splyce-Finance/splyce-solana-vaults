@@ -5,15 +5,9 @@ use anchor_spl::{
 };
 
 use crate::events::WithdrawalRequestCanceledEvent;
-use crate::state::{Config, StrategyData, UserData, Vault, WithdrawRequest};
-use crate::utils::{accountant, strategy as strategy_utils, token, unchecked::*};
-use crate::errors::ErrorCode;
-use crate::constants::{
-    CONFIG_SEED,
-    SHARES_SEED,
-    WITHDRAW_SHARES_ACCOUNT_SEED,
-    WITHDRAW_REQUEST_SEED,
-};
+use crate::state::{Vault, WithdrawRequest};
+use crate::utils::token;
+use crate::constants::{SHARES_SEED,WITHDRAW_SHARES_ACCOUNT_SEED};
 
 #[derive(Accounts)]
 pub struct CancelWithdrawalRequest<'info> {

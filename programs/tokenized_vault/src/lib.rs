@@ -78,7 +78,7 @@ pub mod tokenized_vault {
         handle_cancel_withdrawal_request(ctx)
     }
 
-    pub fn fulfill_withdrawal_request<'info>(ctx: Context<'_, '_, '_, 'info, FulfillWithdrawalRequest<'info>>, 
+    pub fn fulfill_withdrawal_request(ctx: Context<FulfillWithdrawalRequest>, 
     ) -> Result<()> {
         handle_fulfill_withdrawal_request(ctx)
     }

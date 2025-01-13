@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use whirlpool_cpi::{ self };
+use whirlpool_cpi;
 
 use crate::error::ErrorCode;
 use crate::utils::get_token_balance;
@@ -21,7 +21,6 @@ pub struct SwapContext<'info> {
     pub tick_array_1: AccountInfo<'info>,
     pub tick_array_2: AccountInfo<'info>,
     pub oracle: AccountInfo<'info>,
-    pub invest_tracker_account: AccountInfo<'info>,
     pub token_program: AccountInfo<'info>,
     pub strategy: AccountInfo<'info>,
 }

@@ -81,7 +81,7 @@ pub struct FulfillWithdrawalRequest<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handle_fulfill_withdrawal_request<'info>(ctx: Context<'_, '_, '_, 'info, FulfillWithdrawalRequest<'info>>
+pub fn handle_fulfill_withdrawal_request(ctx: Context<FulfillWithdrawalRequest>
 ) -> Result<()> {
 
     let fee_shares = ctx.accounts.withdraw_request.fee_shares;
@@ -94,7 +94,7 @@ pub fn handle_fulfill_withdrawal_request<'info>(ctx: Context<'_, '_, '_, 'info, 
         return Err(ErrorCode::TooMuchLoss.into());
     }
 
-    if assets_to_transfer > ctx.accounts.vault_token_account.amount {
+    if assets_to_transfer > ctx.accounts.vault.load()?.total_idle {
         return Err(ErrorCode::InsufficientFunds.into());
     }
 
