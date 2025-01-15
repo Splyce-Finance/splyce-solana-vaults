@@ -43,7 +43,7 @@ pub struct OrcaStrategy {
     pub underlying_decimals: u8,
 
     pub total_invested: u64, // asset amount * asset price
-    pub total_assets: u64, // In orca, this is idle_underlying + total_invested //what can be the problem here?
+    pub total_assets: u64, // In orca, this is idle_underlying + total_invested
     pub deposit_limit: u64, // Use it when testing beta version
 
     pub fee_data: FeeData,
