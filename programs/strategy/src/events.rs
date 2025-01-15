@@ -66,6 +66,7 @@ pub struct OrcaInitEvent {
 #[event]
 pub struct OrcaAfterSwapEvent {
     pub account_key: Pubkey,
+    pub vault: Pubkey,
     pub buy: bool,
     pub amount: u64,
     pub total_invested: u64,
@@ -75,10 +76,12 @@ pub struct OrcaAfterSwapEvent {
     pub asset_mint: Pubkey,
     pub asset_amount: u64,
     pub asset_decimals: u8,
+    pub total_assets: u64,
     pub idle_underlying: u64,
     pub a_to_b_for_purchase: bool,
     pub underlying_balance_before: u64,
     pub underlying_balance_after: u64,
     pub asset_balance_before: u64,
     pub asset_balance_after: u64,
+    pub timestamp: i64,
 }

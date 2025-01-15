@@ -279,6 +279,7 @@ impl Strategy for OrcaStrategy {
 
         emit!(OrcaAfterSwapEvent {
             account_key: self.key(),
+            vault: self.vault,
             buy: false,
             amount: amount,
             total_invested: self.total_invested,
@@ -288,12 +289,14 @@ impl Strategy for OrcaStrategy {
             asset_mint: self.asset_mint,
             asset_amount: self.asset_amount,
             asset_decimals: self.asset_decimals,
+            total_assets: self.total_assets,
             idle_underlying: self.idle_underlying,
             a_to_b_for_purchase: self.a_to_b_for_purchase,
             underlying_balance_before: underlying_balance_before,
             underlying_balance_after: underlying_balance_after,
             asset_balance_before: asset_balance_before,
             asset_balance_after: asset_balance_after,
+            timestamp: Clock::get()?.unix_timestamp,
         });
 
         Ok(())
@@ -397,6 +400,7 @@ impl Strategy for OrcaStrategy {
         //emiting for data massaging on subgraph
         emit!(OrcaAfterSwapEvent {
             account_key: self.key(),
+            vault: self.vault,
             buy: true,
             amount: amount,
             total_invested: self.total_invested,
@@ -406,12 +410,14 @@ impl Strategy for OrcaStrategy {
             asset_mint: self.asset_mint,
             asset_amount: self.asset_amount,
             asset_decimals: self.asset_decimals,
+            total_assets: self.total_assets,
             idle_underlying: self.idle_underlying,
             a_to_b_for_purchase: self.a_to_b_for_purchase,
             underlying_balance_before: underlying_balance_before,
             underlying_balance_after: underlying_balance_after,
             asset_balance_before: asset_balance_before,
             asset_balance_after: asset_balance_after,
+            timestamp: Clock::get()?.unix_timestamp,
         });
 
         Ok(())
