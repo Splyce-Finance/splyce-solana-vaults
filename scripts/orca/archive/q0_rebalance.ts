@@ -1,14 +1,14 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { Strategy } from "../../target/types/strategy";
-import { TokenizedVault } from "../../target/types/tokenized_vault";
-import { AccessControl } from "../../target/types/access_control";
+import { Strategy } from "../../../target/types/strategy";
+import { TokenizedVault } from "../../../target/types/tokenized_vault";
+import { AccessControl } from "../../../target/types/access_control";
 import { BN } from "@coral-xyz/anchor";
 import * as fs from "fs";
 import * as path from "path";
 import { PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { formatInvestTrackerData } from "./utils/format-invest-tracker";
+import { formatInvestTrackerData } from "../utils/format-invest-tracker";
 
 // Swap-related constants for WSOL
 const WHIRLPOOL_PROGRAM_ID_WSOL = new PublicKey(

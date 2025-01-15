@@ -21,11 +21,11 @@ strategy_program = "EDA9ee5UKzdqrHgSd5v64bNnbCae1t7NJfUpvS7DZod"
 tokenized_vault = "8Y5ZEEnhiNdvGHbfiZVj2eSawrNrQTKd9jPEFqnnKizC"
 
 [registry]
-url = "https://api.mainnet-beta.solana.com"
+url = "https://api.devnet.solana.com"
 
 [provider]
-cluster = "Mainnet"
-wallet = "~/.config/solana/mainnet.json"
+cluster = "Devnet"
+wallet = "~/.config/solana/id.json"
 
 [scripts]
 demo = "yarn run demo"

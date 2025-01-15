@@ -95,8 +95,7 @@ impl<'info> SwapContext<'info> {
         a_to_b: bool,
     ) -> Result<(u64, u64, u64, u64)> {
         // Determine underlying vs asset accounts directly using a_to_b and direction
-        let (underlying_account, asset_account) = if (direction == SwapDirection::Buy && a_to_b) 
-            || (direction == SwapDirection::Sell && !a_to_b) {
+        let (underlying_account, asset_account) = if a_to_b {
             (&self.token_owner_account_a, &self.token_owner_account_b)
         } else {
             (&self.token_owner_account_b, &self.token_owner_account_a)
@@ -131,7 +130,10 @@ impl<'info> SwapContext<'info> {
             other_amount_threshold,
             sqrt_price_limit,
             use_amount_as_input,
-            a_to_b,
+            match direction {
+                SwapDirection::Buy => a_to_b,
+                SwapDirection::Sell => !a_to_b,
+            },
         )?;
 
         // Get post-swap balances

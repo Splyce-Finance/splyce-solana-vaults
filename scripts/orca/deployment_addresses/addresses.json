@@ -3,7 +3,8 @@
     "programs": {
       "whirlpool_program": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
       "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-      "token_metadata_program": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+      "token_metadata_program": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+      "whirlpools_config": "FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR"
     },
     "shares_config": {
         "name": "Solana Top 3 Meme Tokens Test",
@@ -130,17 +131,20 @@
     "vault_config": {
       "deposit_limit": "20000000000",
       "min_user_deposit": "1000000",
+      "user_deposit_limit": "1000000000",
       "profit_max_unlock_time": "31536000",
       "kyc_verified_only": false,
       "direct_deposit_enabled": true,
-      "whitelisted_only": true
+      "whitelisted_only": true,
+      "direct_withdraw_enabled": false
     }
   },
   "mainnet": {
     "programs": {
       "whirlpool_program": "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",
       "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
-      "token_metadata_program": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+      "token_metadata_program": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+      "whirlpools_config": "2LecshUwdy9xi7meFgHtFJQNSKk4KdTrcpvaB56dP2NQ"
     },
     "shares_config": {
       "name": "Solana Top 3 Meme Tokens Test",

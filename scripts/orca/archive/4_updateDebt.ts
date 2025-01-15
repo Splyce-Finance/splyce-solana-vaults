@@ -1,8 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { TokenizedVault } from "../../target/types/tokenized_vault";
-import { Strategy } from "../../target/types/strategy";
-import { AccessControl } from "../../target/types/access_control";
+import { TokenizedVault } from "../../../target/types/tokenized_vault";
+import { Strategy } from "../../../target/types/strategy";
+import { AccessControl } from "../../../target/types/access_control";
 import { BN } from "@coral-xyz/anchor";
 import * as token from "@solana/spl-token";
 import * as fs from "fs";
