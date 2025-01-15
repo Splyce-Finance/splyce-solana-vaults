@@ -10,12 +10,12 @@ use anchor_spl::{
 };
 use strategy::program::Strategy;
 
-use crate::constants::{SHARES_SEED, STRATEGY_DATA_SEED, UNDERLYING_SEED, USER_DATA_SEED, ONE_SHARE_TOKEN};
+use crate::constants::{SHARES_SEED, STRATEGY_DATA_SEED, UNDERLYING_SEED, USER_DATA_SEED};
 
+use crate::errors::ErrorCode;
 use crate::events::{VaultDepositEvent, UpdatedCurrentDebtForStrategyEvent};
 use crate::state::{StrategyData, UserData, Vault};
-use crate::utils::{token, vault};
-use crate::utils::strategy as strategy_utils;
+use crate::utils::{accountant, strategy as strategy_utils, token, vault};
 
 #[derive(Accounts)]
 pub struct DirectDeposit<'info> {
@@ -36,6 +36,18 @@ pub struct DirectDeposit<'info> {
 
     #[account(mut)]
     pub user_shares_account: InterfaceAccount <'info, TokenAccount>,
+
+    /// CHECK:
+    #[account(mut, address = vault.load()?.accountant)]
+    pub accountant: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = shares_mint, 
+        associated_token::authority = accountant,
+    )]
+    pub accountant_recipient: Box<InterfaceAccount<'info, TokenAccount>>,
+    
 
     /// CHECK: Should this be mut?
     #[account(mut)]
@@ -90,20 +102,34 @@ pub struct DirectDeposit<'info> {
 
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
+    pub shares_token_program: Program<'info, Token>,
     pub access_control: Program<'info, AccessControl>,
     pub strategy_program: Program<'info, Strategy>,
 }
 
 pub fn handle_direct_deposit<'info>(ctx: Context<'_, '_, '_, 'info, DirectDeposit<'info>>, amount: u64) -> Result<()> {
+    let enter_fee = accountant::enter(&ctx.accounts.accountant, amount)?;
+    let amount_to_deposit = amount - enter_fee;
+
     vault::validate_deposit(
         &ctx.accounts.vault, 
         &ctx.accounts.kyc_verified.to_account_info(),
         &ctx.accounts.user_data,
         true,
-        amount
+        amount_to_deposit
     )?;
 
-    let shares = ctx.accounts.vault.load()?.convert_to_shares(amount);
+    let new_debt = ctx.accounts.strategy_data.current_debt + amount;
+    if new_debt > ctx.accounts.strategy_data.max_debt {
+        return Err(ErrorCode::DebtHigherThanMaxDebt.into());
+    }
+
+    let max_strategy_deposit = strategy_utils::get_max_deposit(&ctx.accounts.strategy.to_account_info())?;
+    if amount > max_strategy_deposit {
+        return Err(ErrorCode::ExceedDepositLimit.into());
+    }
+
+    let mut shares = ctx.accounts.vault.load()?.convert_to_shares(amount_to_deposit);
 
     token::transfer(
         ctx.accounts.token_program.to_account_info(),
@@ -127,16 +153,29 @@ pub fn handle_direct_deposit<'info>(ctx: Context<'_, '_, '_, 'info, DirectDeposi
         amount,
         &[&ctx.accounts.vault.load()?.seeds()],
         ctx.remaining_accounts.to_vec(),
-    )?;
+    ).unwrap();
 
     token::mint_to(
-        ctx.accounts.token_program.to_account_info(),
+        ctx.accounts.shares_token_program.to_account_info(),
         ctx.accounts.shares_mint.to_account_info(),
         ctx.accounts.user_shares_account.to_account_info(),
         ctx.accounts.shares_mint.to_account_info(),
         shares,
         &ctx.accounts.vault.load()?.seeds_shares(),
     )?;
+
+    if enter_fee > 0 {
+        let fee_shares = ctx.accounts.vault.load()?.convert_to_shares(enter_fee);
+        shares += fee_shares;
+        token::mint_to(
+            ctx.accounts.shares_token_program.to_account_info(),
+            ctx.accounts.shares_mint.to_account_info(),
+            ctx.accounts.accountant_recipient.to_account_info(),
+            ctx.accounts.shares_mint.to_account_info(),
+            fee_shares,
+            &ctx.accounts.vault.load()?.seeds_shares(),
+        )?;
+    }
 
     let mut vault = ctx.accounts.vault.load_mut()?;
 
