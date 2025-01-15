@@ -110,14 +110,6 @@ pub fn handle_fulfill_withdrawal_request(ctx: Context<FulfillWithdrawalRequest>
 
     // 2. trasfer fee shares to accountant
     if fee_shares > 0 {
-        // token::transfer(
-        //     ctx.accounts.shares_token_program.to_account_info(),
-        //     ctx.accounts.withdraw_pool_shares_account.to_account_info(),
-        //     ctx.accounts.accountant_recipient.to_account_info(),
-        //     ctx.accounts.user.to_account_info(),
-        //     &ctx.accounts.shares_mint,
-        //     fee_shares,
-        // )?;
         token::transfer_with_signer(
             ctx.accounts.shares_token_program.to_account_info(),
             ctx.accounts.withdraw_pool_shares_account.to_account_info(),
