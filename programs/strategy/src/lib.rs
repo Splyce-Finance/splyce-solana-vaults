@@ -21,6 +21,8 @@ pub struct RegAcc<'info> {
     pub simple_strategy: Account<'info, SimpleStrategy>,
     #[account()]
     pub tf_strategy: Account<'info, TradeFintechStrategy>,
+    #[account()]
+    pub orca_strategy: Account<'info, OrcaStrategy>,
 }
 
 #[program]

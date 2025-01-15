@@ -1,66 +1,47 @@
+import * as dotenv from 'dotenv';
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { TokenizedVault } from "../../target/types/tokenized_vault";
-import { Strategy } from "../../target/types/strategy";
 import { AccessControl } from "../../target/types/access_control";
-import { OrcaStrategyConfig, OrcaStrategyConfigSchema } from "../../tests/utils/schemas";
 import { BN } from "@coral-xyz/anchor";
 import * as token from "@solana/spl-token";
-import * as borsh from "borsh";
 import * as fs from "fs";
 import * as path from "path";
-import { PublicKey, Keypair, Transaction, Connection, SystemProgram} from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddress,
-  createAssociatedTokenAccountInstruction,
-  createInitializeAccountInstruction
+  getOrCreateAssociatedTokenAccount
 } from "@solana/spl-token";
+import { Accountant } from "../../target/types/accountant";
+import { Strategy } from "../../target/types/strategy";
+import { ComputeBudgetProgram } from "@solana/web3.js";
 
-// Constants
-const METADATA_SEED = "metadata";
-const TOKEN_METADATA_PROGRAM_ID = new anchor.web3.PublicKey(
-  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
-);
+// Load config
+dotenv.config();
+const ADDRESSES_FILE = path.join(__dirname, 'deployment_addresses', 'addresses.json');
+const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
+const ENV = process.env.CLUSTER || 'devnet';
+const CONFIG = ADDRESSES[ENV];
 
-// Swap-related constants
-const WHIRLPOOL_PROGRAM_ID = new PublicKey(
-  "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc"
-);
-const WHIRLPOOL_ID = new PublicKey(
-  "3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt"
-);
-const TICK_ARRAY_ADDRESSES = [
-  new PublicKey("3aBJJLAR3QxGcGsesNXeW3f64Rv3TckF7EQ6sXtAuvGM"),
-  new PublicKey("3aBJJLAR3QxGcGsesNXeW3f64Rv3TckF7EQ6sXtAuvGM"),
-  new PublicKey("3aBJJLAR3QxGcGsesNXeW3f64Rv3TckF7EQ6sXtAuvGM"),
-];
-const ORACLE_ADDRESS = new PublicKey(
-  "2KEWNc3b6EfqoWQpfKQMHh4mhRyKXYRdPbtGRTJX3Cip"
-);
+if (!CONFIG) {
+  throw new Error(`No configuration found for environment: ${ENV}`);
+}
 
-// Token Mints
-const WSOL_MINT = new PublicKey(
-  "So11111111111111111111111111111111111111112"
-);
-const USDC_MINT = new PublicKey(
-  "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k"
-);
+const underlyingMint = new PublicKey(CONFIG.mints.underlying.address);
 
-// Swap Vaults
-const TOKEN_VAULT_A = new PublicKey(
-  "C9zLV5zWF66j3rZj3uuhDqvfuA8esJyWnruGzDW9qEj2"
-);
-const TOKEN_VAULT_B = new PublicKey(
-  "7DM3RMz2yzUB8yPRQM3FMZgdFrwZGMsabsfsKopWktoX"
-);
+type Asset = {
+  investment_config: {
+    assigned_weight_bps: number;
+  }
+};
+
+const TICK_ARRAYS_FILE = path.join(__dirname, 'deployment_addresses', 'currentTickArrays.json');
+const TICK_ARRAYS = JSON.parse(fs.readFileSync(TICK_ARRAYS_FILE, 'utf8'));
 
 async function main() {
   try {
-    // ============================
-    // Setup Provider and Programs
-    // ============================
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
 
@@ -76,85 +57,209 @@ async function main() {
     console.log("Admin PublicKey:", admin.publicKey.toBase58());
 
     // Initialize programs
-    const vaultProgram: Program<TokenizedVault> = anchor.workspace.TokenizedVault;
-    const strategyProgram: Program<Strategy> = anchor.workspace.Strategy;
+    const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
     const accessControlProgram = anchor.workspace.AccessControl as Program<AccessControl>;
+    const accountantProgram = anchor.workspace.Accountant as Program<Accountant>;
+    const strategyProgram = anchor.workspace.Strategy as Program<Strategy>;
 
-    console.log("Vault Program ID:", vaultProgram.programId.toBase58());
-    console.log("Strategy Program ID:", strategyProgram.programId.toBase58());
-    console.log("Access Control Program ID:", accessControlProgram.programId.toBase58());
+    const depositAmount = new BN(10_000_000); // 5 USDC
+    const vaultIndex = 0;
+    const accountantIndex = 0; // The first accountant we created
 
-    // ============================
-    // Deposit USDC to the Vault
-    // ============================
-    console.log("Depositing USDC to the Vault...");
-
-    const depositAmount = new BN(10).mul(new BN(10).pow(new BN(6))); // x devUSDC
-    const vault_index = 0;
-
-    // Derive the vault PDA
-    const [vaultPDA] = await PublicKey.findProgramAddress(
+    // Derive vault PDA
+    const [vault] = PublicKey.findProgramAddressSync(
       [
-          Buffer.from("vault"),
-          Buffer.from(new Uint8Array(new BigUint64Array([BigInt(vault_index)]).buffer))
+        Buffer.from("vault"),
+        new BN(vaultIndex).toArrayLike(Buffer, 'le', 8)
       ],
       vaultProgram.programId
     );
 
-    // Derive the shares mint
-    const [sharesMint] = await PublicKey.findProgramAddress(
-        [Buffer.from("shares"), vaultPDA.toBuffer()],
-        vaultProgram.programId
+    // Derive accountant PDA (same way as in init_accountant.rs)
+    const [accountant] = PublicKey.findProgramAddressSync(
+      [new BN(accountantIndex).toArrayLike(Buffer, 'le', 8)],
+      accountantProgram.programId
     );
 
-    // Get user's USDC ATA and shares ATA
-    const userUsdcATA = await getAssociatedTokenAddress(
-          USDC_MINT,
-          admin.publicKey
+    // Derive shares mint
+    const [sharesMint] = PublicKey.findProgramAddressSync(
+      [Buffer.from("shares"), vault.toBuffer()],
+      vaultProgram.programId
     );
 
-    const userSharesATA = await token.getOrCreateAssociatedTokenAccount(
-        provider.connection,
-        admin,
-        sharesMint,
-        admin.publicKey,
-        false,
-        undefined,
-        undefined,
-        TOKEN_PROGRAM_ID,
-        ASSOCIATED_TOKEN_PROGRAM_ID
+    // Get user's token account
+    const userTokenAccount = await getAssociatedTokenAddress(
+      underlyingMint,
+      admin.publicKey
     );
-  
-    // Get vault's USDC ATA
-    const vaultUsdcATA = PublicKey.findProgramAddressSync(
-        [Buffer.from("underlying"), vaultPDA.toBuffer()],
-        vaultProgram.programId
-    )[0];
-  
+
+    // console.log("User token account:", userTokenAccount.toBase58());
+
+    // Get or create user's shares account
+    const userSharesAccount = await getOrCreateAssociatedTokenAccount(
+      provider.connection,
+      admin,
+      sharesMint,
+      admin.publicKey,
+      false,
+      undefined,
+      undefined,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    // console.log("User shares account:", userSharesAccount.toBase58());
+
+    // Log initial balances
+    const initialBalances = {
+      userUsdc: await provider.connection.getTokenAccountBalance(userTokenAccount),
+      userShares: await provider.connection.getTokenAccountBalance(userSharesAccount.address),
+    };
+
+    console.log("\nInitial Balances:");
+    console.log("User USDC:", initialBalances.userUsdc.value.uiAmount);
+    console.log("User Shares:", initialBalances.userShares.value.uiAmount);
+
     try {
-        await vaultProgram.methods
-            .deposit(depositAmount)
-            .accounts({
-                vault: vaultPDA,
-                userTokenAccount: userUsdcATA,
-                userSharesAccount: userSharesATA.address,
-                user: admin.publicKey,
-            })
-            .signers([admin])
-            .rpc();
-        
-        // Display balances after deposit
-        const userUsdcBalance = await provider.connection.getTokenAccountBalance(userUsdcATA);
-        const vaultUsdcBalance = await provider.connection.getTokenAccountBalance(vaultUsdcATA);
-        const userSharesBalance = await provider.connection.getTokenAccountBalance(userSharesATA.address);
-        
-        console.log("User USDC balance after deposit:", userUsdcBalance.value.uiAmount);
-        console.log("Vault USDC balance after deposit:", vaultUsdcBalance.value.uiAmount);
-        console.log("User shares balance after deposit:", userSharesBalance.value.uiAmount);
-        console.log("User shares balance after deposit raw number:", userSharesBalance.value.amount);
-      } catch (error) {
-        console.error("Error during deposit:", error);
+      // Execute deposit first
+      await vaultProgram.methods
+        .deposit(depositAmount)
+        .accounts({
+          vault,
+          accountant,
+          userTokenAccount,
+          underlyingMint,
+          userSharesAccount: userSharesAccount.address,
+          user: admin.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .signers([admin])
+        .rpc();
+
+      console.log("\nDeposit transaction executed successfully");
+      console.log(`Deposit amount: ${depositAmount.toString()}`);
+
+      // Get assets and verify environment
+      const assets = CONFIG.mints.assets;
+      console.log(`\nEnvironment: ${ENV}`);
+      console.log("Assets to distribute:", Object.keys(assets).join(", "));
+
+      // Calculate total weight and verify it equals 10000 (100%)
+      const totalWeightBps = Object.values(assets as Record<string, Asset>).reduce(
+        (sum, asset) => sum + asset.investment_config.assigned_weight_bps, 
+        0
+      );
+      
+      if (totalWeightBps !== 10000) {
+        console.warn(`Warning: Total weight (${totalWeightBps} bps) does not equal 100% (10000 bps)`);
       }
+
+      console.log("\nWeight Distribution:");
+      Object.entries(assets as Record<string, Asset>).forEach(([symbol, asset]) => {
+        const weight = asset.investment_config.assigned_weight_bps;
+        console.log(`${symbol}: ${weight} bps (${(weight / 100).toFixed(2)}%)`);
+      });
+
+      console.log("\nDistributing debt across strategies...");
+      
+      for (let i = 0; i < Object.keys(assets).length; i++) {
+        const assetSymbol = Object.keys(assets)[i];
+        const asset = assets[assetSymbol];
+        const weight = asset.investment_config.assigned_weight_bps;
+        const aToBForPurchase = asset.investment_config.a_to_b_for_purchase;
+        
+        // Calculate proportional amount
+        const strategyAmount = depositAmount.mul(new BN(weight)).div(new BN(totalWeightBps));
+
+        // Derive strategy PDA
+        const [strategy] = PublicKey.findProgramAddressSync(
+          [vault.toBuffer(), new BN(i).toArrayLike(Buffer, 'le', 8)],
+          strategyProgram.programId
+        );
+
+        console.log(`\nUpdating debt for ${assetSymbol} (Strategy ${i}):`);
+        console.log(`- Weight: ${weight} bps (${(weight / 100).toFixed(2)}%)`);
+        console.log(`- Amount: ${strategyAmount.toString()}`);
+        console.log(`- Strategy address: ${strategy.toString()}`);
+        console.log(`- A to B for purchase: ${aToBForPurchase}`);
+
+        const assetMint = new PublicKey(assets[assetSymbol].address);
+        const whirlpoolAddress = new PublicKey(assets[assetSymbol].pool.id);
+
+        // Get strategy token accounts
+        const [strategyAssetAccount] = PublicKey.findProgramAddressSync(
+          [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
+          strategyProgram.programId
+        );
+
+        const strategyTokenAccount = PublicKey.findProgramAddressSync(
+          [Buffer.from("underlying"), strategy.toBuffer()],
+          strategyProgram.programId
+        )[0];
+
+        // Get token account order based on a_to_b_for_purchase
+        const [tokenAccountA, tokenAccountB] = aToBForPurchase
+          ? [strategyTokenAccount, strategyAssetAccount]
+          : [strategyAssetAccount, strategyTokenAccount];
+
+        // Form remaining accounts for this asset
+        const remainingAccounts = [
+          { pubkey: new PublicKey(CONFIG.programs.whirlpool_program), isWritable: false, isSigner: false },
+          { pubkey: whirlpoolAddress, isWritable: true, isSigner: false },
+          { pubkey: tokenAccountA, isWritable: true, isSigner: false },
+          { pubkey: new PublicKey(assets[assetSymbol].pool.token_vault_a), isWritable: true, isSigner: false },
+          { pubkey: tokenAccountB, isWritable: true, isSigner: false },
+          { pubkey: new PublicKey(assets[assetSymbol].pool.token_vault_b), isWritable: true, isSigner: false },
+          ...TICK_ARRAYS[ENV].assets[assetSymbol].buying_tick_arrays.slice(0, 3).map(addr => ({
+            pubkey: new PublicKey(addr),
+            isWritable: true,
+            isSigner: false
+          })),
+          { pubkey: new PublicKey(assets[assetSymbol].pool.oracle), isWritable: true, isSigner: false }
+        ];
+
+        // Set compute unit limit
+        const computeUnitIx = ComputeBudgetProgram.setComputeUnitLimit({
+          units: 300_000,
+        });
+
+        await vaultProgram.methods
+          .updateDebt(strategyAmount)
+          .accounts({
+            vault,
+            strategy,
+            signer: admin.publicKey,
+            underlyingMint,
+            tokenProgram: TOKEN_PROGRAM_ID,
+          })
+          .remainingAccounts(remainingAccounts)
+          .preInstructions([computeUnitIx])
+          .signers([admin])
+          .rpc();
+
+        console.log(`✓ Debt updated for ${assetSymbol}`);
+      }
+
+      // Log final balances
+      const finalBalances = {
+        userUsdc: await provider.connection.getTokenAccountBalance(userTokenAccount),
+        userShares: await provider.connection.getTokenAccountBalance(userSharesAccount.address),
+      };
+
+      console.log("\nFinal Balances:");
+      console.log("User USDC:", finalBalances.userUsdc.value.uiAmount);
+      console.log("User Shares:", finalBalances.userShares.value.uiAmount);
+
+      console.log("\nBalance Changes:");
+      console.log("User USDC:", finalBalances.userUsdc.value.uiAmount! - initialBalances.userUsdc.value.uiAmount!);
+      console.log("User Shares:", finalBalances.userShares.value.uiAmount! - initialBalances.userShares.value.uiAmount!);
+
+    } catch (error) {
+      console.error("Error during deposit or debt update:", error);
+      if ('logs' in error) {
+        console.error("Program Logs:", error.logs);
+      }
+    }
 
   } catch (error) {
     console.error("Error occurred:", error);

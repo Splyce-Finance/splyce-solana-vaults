@@ -6,6 +6,8 @@ use super::fee_data::*;
 use super::StrategyType;
 use crate::error::ErrorCode;
 use crate::events::{
+    OrcaInitEvent,
+    OrcaAfterSwapEvent,
     HarvestAndReportDTFEvent, 
     StrategyDeployFundsEvent,
     StrategyDepositEvent, 
@@ -40,8 +42,8 @@ pub struct OrcaStrategy {
     pub underlying_token_acc: Pubkey,
     pub underlying_decimals: u8,
 
-    pub total_invested: u64, // It's here but not used since total_invested can underflow in orca_strategy when withdrawl amount gets bigger than deposited amount due to asset appreciation
-    pub total_assets: u64, // In orca, this is not actual total assets but total asset value in underlying token units (total asset value)
+    pub total_invested: u64, // asset amount * asset price
+    pub total_assets: u64, // In orca, this is idle_underlying + total_invested
     pub deposit_limit: u64, // Use it when testing beta version
 
     pub fee_data: FeeData,
@@ -59,13 +61,12 @@ pub struct OrcaStrategy {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct OrcaStrategyConfig {
     pub deposit_limit: u64,
-    pub deposit_period_ends: i64,
-    pub lock_period_ends: i64,
     pub performance_fee: u64,
     pub fee_manager: Pubkey,
     pub whirlpool_id: Pubkey,
     pub asset_mint: Pubkey,
     pub asset_decimals: u8,
+    pub a_to_b_for_purchase: bool,
 }
 
 #[error_code]
@@ -223,7 +224,7 @@ impl Strategy for OrcaStrategy {
             strategy: accounts.strategy.to_account_info(),
         };
 
-        let sqrt_price_limit = if self.a_to_b_for_purchase {
+        let sqrt_price_limit = if !self.a_to_b_for_purchase {
             MIN_SQRT_PRICE_X64
         } else {
             MAX_SQRT_PRICE_X64
@@ -231,9 +232,9 @@ impl Strategy for OrcaStrategy {
 
         // Perform swap with calculated parameters
         let (
-            _underlying_balance_before,
+            underlying_balance_before,
             underlying_balance_after,
-            _asset_balance_before,
+            asset_balance_before,
             asset_balance_after,
         ) = swap_ctx.perform_swap(
             &[&self.seeds()[..]],
@@ -257,9 +258,44 @@ impl Strategy for OrcaStrategy {
         )
         .unwrap();
 
+        // Report current state to sync total_assets after swap
+        self.report(
+            &Report {
+                strategy: accounts.strategy.clone(),
+                underlying_token_account: accounts.underlying_token_account.clone(),
+                underlying_mint: accounts.underlying_mint.clone(),
+                signer: accounts.signer.clone(),
+                token_program: accounts.token_program.clone(),
+            },
+            &[remaining[1].clone()],
+        )
+        .unwrap();
+
         emit!(StrategyFreeFundsEvent {
             account_key: self.key(),
             amount,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+
+        emit!(OrcaAfterSwapEvent {
+            account_key: self.key(),
+            vault: self.vault,
+            buy: false,
+            amount: amount,
+            total_invested: self.total_invested,
+            whirlpool_id: self.whirlpool_id,
+            underlying_mint: self.underlying_mint,
+            underlying_decimals: self.underlying_decimals,
+            asset_mint: self.asset_mint,
+            asset_amount: self.asset_amount,
+            asset_decimals: self.asset_decimals,
+            total_assets: self.total_assets,
+            idle_underlying: self.idle_underlying,
+            a_to_b_for_purchase: self.a_to_b_for_purchase,
+            underlying_balance_before: underlying_balance_before,
+            underlying_balance_after: underlying_balance_after,
+            asset_balance_before: asset_balance_before,
+            asset_balance_after: asset_balance_after,
             timestamp: Clock::get()?.unix_timestamp,
         });
 
@@ -309,7 +345,7 @@ impl Strategy for OrcaStrategy {
         let (
             underlying_balance_before,
             underlying_balance_after,
-            _asset_balance_before,
+            asset_balance_before,
             asset_balance_after,
         ) = swap_ctx.perform_swap(
             &[&self.seeds()[..]],
@@ -342,9 +378,45 @@ impl Strategy for OrcaStrategy {
             .checked_add(invested)
             .ok_or(OrcaStrategyErrorCode::MathError)?;
 
+        // Report current state to sync total_assets after swap
+        self.report(
+            &Report {
+                strategy: accounts.strategy.clone(),
+                underlying_token_account: accounts.underlying_token_account.clone(),
+                underlying_mint: accounts.underlying_mint.clone(),
+                signer: accounts.signer.clone(),
+                token_program: accounts.token_program.clone(),
+            },
+            &[remaining[1].clone()],
+        )
+        .unwrap();
+
         emit!(StrategyDeployFundsEvent {
             account_key: self.key(),
             amount,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+
+        //emiting for data massaging on subgraph
+        emit!(OrcaAfterSwapEvent {
+            account_key: self.key(),
+            vault: self.vault,
+            buy: true,
+            amount: amount,
+            total_invested: self.total_invested,
+            whirlpool_id: self.whirlpool_id,
+            underlying_mint: self.underlying_mint,
+            underlying_decimals: self.underlying_decimals,
+            asset_mint: self.asset_mint,
+            asset_amount: self.asset_amount,
+            asset_decimals: self.asset_decimals,
+            total_assets: self.total_assets,
+            idle_underlying: self.idle_underlying,
+            a_to_b_for_purchase: self.a_to_b_for_purchase,
+            underlying_balance_before: underlying_balance_before,
+            underlying_balance_after: underlying_balance_after,
+            asset_balance_before: asset_balance_before,
+            asset_balance_after: asset_balance_after,
             timestamp: Clock::get()?.unix_timestamp,
         });
 
@@ -419,6 +491,7 @@ impl StrategyInit for OrcaStrategy {
         self.whirlpool_id = config.whirlpool_id;
         self.asset_mint = config.asset_mint;
         self.asset_decimals = config.asset_decimals;
+        self.a_to_b_for_purchase = config.a_to_b_for_purchase;
 
         self.fee_data = FeeData {
             fee_manager: config.fee_manager,
@@ -434,8 +507,16 @@ impl StrategyInit for OrcaStrategy {
             underlying_token_acc: self.underlying_token_acc,
             underlying_decimals: self.underlying_decimals,
             deposit_limit: self.deposit_limit,
-            deposit_period_ends: config.deposit_period_ends,
-            lock_period_ends: config.lock_period_ends,
+            deposit_period_ends: 0,
+            lock_period_ends: 0,
+        });
+
+        emit!(OrcaInitEvent {
+            account_key: self.key(),
+            whirlpool_id: self.whirlpool_id,
+            asset_mint: self.asset_mint,
+            asset_decimals: self.asset_decimals,
+            a_to_b_for_purchase: self.a_to_b_for_purchase,
         });
 
         Ok(())

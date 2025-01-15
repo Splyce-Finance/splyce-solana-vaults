@@ -46,7 +46,7 @@ pub struct RequestWithdraw<'info> {
     #[account(mut, seeds = [WITHDRAW_SHARES_ACCOUNT_SEED.as_bytes(), vault.key().as_ref()], bump)]
     pub withdraw_pool_token_account: Box<InterfaceAccount<'info, TokenAccount>>,
         
-    #[account(seeds = [CONFIG_SEED.as_bytes()], bump)]
+    #[account(mut, seeds = [CONFIG_SEED.as_bytes()], bump)]
     pub config: Box<Account<'info, Config>>,
 
     /// CHECK:
