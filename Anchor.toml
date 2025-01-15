@@ -5,26 +5,26 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-access_control = "G4R4QqWTLGoNCs1DRFpSHxPAJohe5obP8n8RVrHBMH33"
-accountant = "FUtRzVSpo1cEjEGPzbowQj3vdcEoUJfvTKbn8mw8ZKSS"
-deposit_limit = "5ftd8XcvMXHFquqBFKP7BgdzLnxPodtnoowB3GKn5528"
-faucet = "sZyuAVwfJvgcopZtHq5y5wQ488qaWkSqdX1xPKsTYeX"
+access_control = "BU79nh3t75qz6c4ZAEFerPe3oG3LWeR7yVCKEsmsKoVg"
+accountant = "Bf1BvAXJ5t54EM9Zrt4rNCzMt6wAYFZb6AQ7MyeRrtQ2"
+deposit_limit = "3vtUJvcSSFeMGZ9hZXdiQnmgVZzqpN5Z3shkVaP58kAo"
+faucet = "2U2tuuFimmjRZ4R1Qgmeq3Pi26zqw6q5aES3Fn1XRWzP"
 strategy_program = "EDA9ee5UKzdqrHgSd5v64bNnbCae1t7NJfUpvS7DZod"
-tokenized_vault = "8Y5ZEEnhiNdvGHbfiZVj2eSawrNrQTKd9jPEFqnnKizC"
+tokenized_vault = "CeA36WrwfsD7nuNpMVFtjeSSGiJf9zhz3mhXAWwTRuoj"
 
 [programs.localnet]
-access_control = "G4R4QqWTLGoNCs1DRFpSHxPAJohe5obP8n8RVrHBMH33"
-accountant = "FUtRzVSpo1cEjEGPzbowQj3vdcEoUJfvTKbn8mw8ZKSS"
-deposit_limit = "5ftd8XcvMXHFquqBFKP7BgdzLnxPodtnoowB3GKn5528"
-faucet = "sZyuAVwfJvgcopZtHq5y5wQ488qaWkSqdX1xPKsTYeX"
+access_control = "BU79nh3t75qz6c4ZAEFerPe3oG3LWeR7yVCKEsmsKoVg"
+accountant = "Bf1BvAXJ5t54EM9Zrt4rNCzMt6wAYFZb6AQ7MyeRrtQ2"
+deposit_limit = "3vtUJvcSSFeMGZ9hZXdiQnmgVZzqpN5Z3shkVaP58kAo"
+faucet = "2U2tuuFimmjRZ4R1Qgmeq3Pi26zqw6q5aES3Fn1XRWzP"
 strategy_program = "EDA9ee5UKzdqrHgSd5v64bNnbCae1t7NJfUpvS7DZod"
-tokenized_vault = "8Y5ZEEnhiNdvGHbfiZVj2eSawrNrQTKd9jPEFqnnKizC"
+tokenized_vault = "CeA36WrwfsD7nuNpMVFtjeSSGiJf9zhz3mhXAWwTRuoj"
 
 [registry]
-url = "https://api.devnet.solana.com"
+url = "https://api.apr.dev"
 
 [provider]
-cluster = "Devnet"
+cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
