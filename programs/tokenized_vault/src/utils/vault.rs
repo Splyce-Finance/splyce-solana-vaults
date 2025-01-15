@@ -30,7 +30,7 @@ pub fn validate_deposit<'info>(
         return Err(ErrorCode::ExceedUserDepositLimit.into());
     }
 
-    if amount < vault.min_user_deposit {
+    if user_data.deposited + amount < vault.min_user_deposit {
         return Err(ErrorCode::MinDepositNotReached.into());
     }
 

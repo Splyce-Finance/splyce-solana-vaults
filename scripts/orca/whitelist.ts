@@ -7,8 +7,8 @@ import * as path from 'path';
 
 // Address to be whitelisted
 const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("F7FLF8hrNk1p493dCjHHVoQJBqfzXVk917BvfAj5r4yJ");
-// const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("2fAy3iYztUAoXx6TzKZXYc1h862NL4J6XN5ShYb4sUu8");
-
+// const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("2fAy3iYztUAoXx6TzKZXYc1h862NL4J6XN5ShYb4sUu8"); 
+// const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("FJ2B6DtzYXbk6mQhQATGV9d9fb9htasvMmnUCSbSvpW9"); //done for index 1
 async function main() {
     try {
         // Setup provider and program
@@ -18,7 +18,7 @@ async function main() {
         const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
 
         // Load admin keypair
-        const secretKeyPath = path.resolve(process.env.HOME, '.config/solana/id.json');
+        const secretKeyPath = path.resolve(process.env.HOME, '.config/solana/mainnet.json');
         const secretKeyString = fs.readFileSync(secretKeyPath, 'utf8');
         const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
         const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
@@ -27,7 +27,7 @@ async function main() {
         console.log("Address to whitelist:", ADDRESS_TO_WHITELIST.toBase58());
 
         // Calculate vault PDA (using index 0 as default)
-        const vaultIndex = 0;
+        const vaultIndex = 2;
         const vault = anchor.web3.PublicKey.findProgramAddressSync(
             [
                 Buffer.from("vault"),

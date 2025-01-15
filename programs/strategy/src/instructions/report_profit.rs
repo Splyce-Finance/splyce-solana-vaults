@@ -7,7 +7,6 @@ use access_control::{
 };
 
 use crate::utils::unchecked_strategy::UncheckedStrategy;
-use crate::error::ErrorCode;
 use crate::constants::UNDERLYING_SEED;
 
 #[derive(Accounts)]

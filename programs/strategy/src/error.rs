@@ -34,4 +34,10 @@ pub enum ErrorCode {
 
     #[msg("Math overflow")]
     MathOverflow,
+
+    #[msg("Operaction not supported")]
+    OperactionNotSupported,
+
+    #[msg("Math error")]
+    MathError,
 }

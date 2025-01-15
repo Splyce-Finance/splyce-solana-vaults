@@ -16,8 +16,7 @@ pub const NUM_REWARDS: usize = 3;
 pub const MAX_ASSIGNED_WEIGHT: u16 = 10000; // 100% in bps
 
 // Asset value discount constant
-pub const ASSET_VALUE_DISCOUNT_BPS: u16 = 30; // 0.3% discount 30 bps
+pub const ASSET_VALUE_DISCOUNT_BPS: u16 = 60; // 0.6% discount 60 bps
 
 // Orca strategy specific constants
-pub const ORCA_ACCOUNTS_PER_SWAP: usize = 12;
-pub const ORCA_INVEST_TRACKER_OFFSET: usize = 10;
+pub const ORCA_ACCOUNTS_PER_SWAP: usize = 10;

@@ -6,13 +6,12 @@ pub mod utils;
 pub mod events;
 
 use anchor_lang::prelude::*;
-use crate::error::ErrorCode;
 
 pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("AVjatxXi6aRfjxdCbzqffGqmiaJLWXuKFAbkA6FeKymW");
+declare_id!("Ce2HhVGaVASoDmThWkzBQfnTjjAmQ8oPnEc1iAXqLxYm");
 
 // we need to define a trait for the strategies
 // they aren't defined otherwise, because we work with unchecked accounts
@@ -22,6 +21,8 @@ pub struct RegAcc<'info> {
     pub simple_strategy: Account<'info, SimpleStrategy>,
     #[account()]
     pub tf_strategy: Account<'info, TradeFintechStrategy>,
+    #[account()]
+    pub orca_strategy: Account<'info, OrcaStrategy>,
 }
 
 #[program]
@@ -88,25 +89,7 @@ pub mod strategy {
         handle_init_token_account(ctx)
     }
 
-    pub fn init_invest_tracker(ctx: Context<InitInvestTracker>, a_to_b_for_purchase: bool, assigned_weight: u16) -> Result<()> {
-        handle_init_invest_tracker(ctx, a_to_b_for_purchase, assigned_weight)
-    }
-
-    pub fn update_invest_trackers(ctx: Context<UpdateInvestTrackers>) -> Result<()> {
-        handle_update_invest_trackers(ctx)
-    }
-
     pub fn free_funds<'info>(ctx:  Context<'_, '_, '_, 'info, FreeFunds<'info>>, amount: u64) -> Result<()> {
         handle_free_funds(ctx, amount)
-    }
-
-    pub fn rebalance<'info>(ctx: Context<'_, '_, '_, 'info, Rebalance<'info>>, amount: u64) -> Result<()> {
-        let strategy = OrcaStrategy::try_from_slice(&ctx.accounts.strategy.try_borrow_data()?[8..])?;
-
-        if strategy.strategy_type() != StrategyType::Orca {
-            return Err(ErrorCode::InvalidStrategyType.into());
-        }
-        
-        handle_rebalance(ctx, amount)
     }
 }
