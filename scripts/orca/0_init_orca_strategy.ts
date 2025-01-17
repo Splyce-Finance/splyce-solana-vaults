@@ -153,12 +153,12 @@ async function main() {
     console.log("Reporting Manager role assigned to Admin.");
 
     await accessControlProgram.methods.setRole(ROLES.REPORTING_MANAGER, REPORT_BOT)
-    .accounts({
-      signer: admin.publicKey,
-    })
-    .signers([admin])
-    .rpc();
-  console.log("Reporting Manager role assigned to REPORT_BOT.");
+      .accounts({
+        signer: admin.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+    console.log("Reporting Manager role assigned to REPORT_BOT.");
 
     await accessControlProgram.methods.setRole(ROLES.STRATEGIES_MANAGER, admin.publicKey)
       .accounts({
@@ -169,12 +169,20 @@ async function main() {
     console.log("Strategies Manager role assigned to Admin.");
 
     await accessControlProgram.methods.setRole(ROLES.STRATEGIES_MANAGER, REPORT_BOT)
-    .accounts({
-      signer: admin.publicKey,
-    })
-    .signers([admin])
-    .rpc();
-  console.log("Strategies Manager role assigned to REPORT_BOT.");
+      .accounts({
+        signer: admin.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+    console.log("Strategies Manager role assigned to REPORT_BOT.");
+
+    await accessControlProgram.methods.setRole(ROLES.VAULTS_ADMIN, REPORT_BOT)
+      .accounts({
+        signer: admin.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+    console.log("Vaults Admin role assigned to REPORT_BOT.");
 
     await accessControlProgram.methods.setRole(ROLES.ACCOUNTANT_ADMIN, admin.publicKey)
       .accounts({
