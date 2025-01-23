@@ -1,10 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::Discriminator;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::Token,
-    token_interface::{Mint, TokenAccount},
-};
+
 use access_control::{
     constants::USER_ROLE_SEED,
     program::AccessControl,
@@ -29,17 +25,6 @@ pub struct InitAccountant<'info> {
     )]
     pub accountant: UncheckedAccount<'info>,
 
-    #[account(
-        init, 
-        payer = signer, 
-        associated_token::mint = underlying_mint, 
-        associated_token::authority = accountant,
-    )]
-    pub token_account: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    #[account(mut)]
-    pub underlying_mint: Box<InterfaceAccount<'info, Mint>>,
-
     #[account(mut, seeds = [CONFIG_SEED.as_bytes()], bump)]
     pub config: Account<'info, Config>,
 
@@ -59,8 +44,6 @@ pub struct InitAccountant<'info> {
 
 
     pub access_control: Program<'info, AccessControl>,
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 }

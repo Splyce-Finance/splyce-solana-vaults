@@ -11,6 +11,6 @@ pub enum ErrorCode {
     #[msg("Serialization error")]
     SerializationError,
 
-    #[msg("Invalid recipient")]
-    InvalidRecipient,
+    #[msg("Fee is invalid")]
+    InvalidFee,
 }

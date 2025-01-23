@@ -2,32 +2,17 @@ use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum ErrorCode {
-    #[msg("Custom error message")]
-    CustomError,
-
     #[msg("Invalid strategy config")]
     InvalidStrategyConfig,
-
-    #[msg("Invalid account type")]
-    InvalidAccountType,
 
     #[msg("Invalid strategy data")]
     InvalidStrategyData,
 
-    #[msg("Cannot withdraw")]
-    CannotWithdraw,
-
     #[msg("Invalid account")]
     InvalidAccount,
 
-    #[msg("Debt cannot be reduced because of unrealised losses")]
-    UnrealisedLosses,
-
     #[msg("Cannot serialize strategy")]
     SerializationError,
-
-    #[msg("Operation not supported")]
-    NotSupported,
 
     #[msg("Insufficient funds")]
     InsufficientFunds,
@@ -40,4 +25,19 @@ pub enum ErrorCode {
 
     #[msg("Loss is too high")]
     LossTooHigh,
+
+    #[msg("Invalid strategy type")]
+    InvalidStrategyType,
+
+    #[msg("Invalid tracker setup")]
+    InvalidTrackerSetup,
+
+    #[msg("Math overflow")]
+    MathOverflow,
+
+    #[msg("Operaction not supported")]
+    OperactionNotSupported,
+
+    #[msg("Math error")]
+    MathError,
 }

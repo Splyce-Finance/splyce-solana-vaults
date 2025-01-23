@@ -1,0 +1,42 @@
+{
+  "devnet": {
+    "assets": {
+      "SOL": {
+        "buying_tick_arrays": [
+          "3aBJJLAR3QxGcGsesNXeW3f64Rv3TckF7EQ6sXtAuvGM",
+          "7knZZ461yySGbSEHeBUwEpg3VtAkQy8B9tp78RGgyUHE",
+          "CpoSFo3ajrizueggtJr2ZjvYgdtkgugXtvhqcwkyCkKP"
+        ],
+        "selling_tick_arrays": [
+          "3aBJJLAR3QxGcGsesNXeW3f64Rv3TckF7EQ6sXtAuvGM",
+          "A1vrG379E5ttoaWmyQBiunsMdyrpoUp7mSQwu8DgLcip",
+          "6457MVShLFLePXXpyj2uwL2P23wkraT4QnP5u5orTRDU"
+        ]
+      },
+      "USDT": {
+        "buying_tick_arrays": [
+          "EBHQcAfc4ncUkCxgGYxEWCSu744qFaBEBmyv3U9ajNzX",
+          "8Eh57hMUNffNpQPb4K2nQZFPguiYgnCSi2ehvtmuE2PA",
+          "FpGrraM6rZN1AkxMTyJrASda4q6BSdGJgqj544S1vcjL"
+        ],
+        "selling_tick_arrays": [
+          "EBHQcAfc4ncUkCxgGYxEWCSu744qFaBEBmyv3U9ajNzX",
+          "4cCMLotR9ATrdxznfA6uJjySPJ96yEqzqUejxVxHrV9x",
+          "HZUZhi5xeybSiKJqBu1XXRh4y9azNLNSdgQ7owyarzQ"
+        ]
+      },
+      "SAMO": {
+        "buying_tick_arrays": [
+          "9H4aVdyXbnnmbSJLjYahvZzrgdHyWVMq8i1v1fD7jqBt",
+          "G13PKFAkn7rLHVT1fGbLPKAQFiMe6GiRKZ6e8ipxcn9q",
+          "76ntKkVqoLqakqHb6TdkWKuD9kNv2JbPL3k6EHudWHxd"
+        ],
+        "selling_tick_arrays": [
+          "9H4aVdyXbnnmbSJLjYahvZzrgdHyWVMq8i1v1fD7jqBt",
+          "B6n4APQbms1BdY5Ev1V9hjgz3NC94f7ws8qG9e3bpedE",
+          "9AQxHkiVJqoXRUvP9FpoXUcZ1HCEHpJHp8eZVRocK7Wx"
+        ]
+      }
+    }
+  }
+}

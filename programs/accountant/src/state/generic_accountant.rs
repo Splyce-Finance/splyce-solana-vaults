@@ -12,8 +12,9 @@ pub struct GenericAccountant {
     pub index_buffer: [u8; 8],
     pub bump: [u8; 1],
 
+    pub entry_fee: u64,
+    pub redemption_fee: u64,
     pub performance_fee: u64,
-    pub fee_recipient: Pubkey,
 }
 
 impl Accountant for GenericAccountant {
@@ -36,12 +37,18 @@ impl Accountant for GenericAccountant {
         Ok((total_fees, total_refunds))
     }
 
+    fn enter(&self, amount: u64) -> Result<u64> {
+        let fee = self.entry_fee * amount / FEE_BPS;
+        Ok(fee)
+    }
+
+    fn redeem(&self, amount: u64) -> Result<u64> {
+        let fee = self.redemption_fee * amount / FEE_BPS;
+        Ok(fee)
+    }
+
     fn distribute(&mut self, accounts: &Distribute) -> Result<()> {
         let total = accounts.token_account.amount;
-
-        if accounts.recipient.key() != self.fee_recipient {
-           return Err(ErrorCode::InvalidRecipient.into());
-        }
 
         token::transfer(
             CpiContext::new_with_signer(
@@ -57,13 +64,30 @@ impl Accountant for GenericAccountant {
         )
     }
 
-    fn set_fee(&mut self, fee: u64) -> Result<()> {
+    fn set_performance_fee(&mut self, fee: u64) -> Result<()> {
+        if fee > FEE_BPS {
+            return Err(ErrorCode::InvalidFee.into());
+        }
+
         self.performance_fee = fee;
         Ok(())
     }
 
-    fn set_fee_recipient(&mut self, recipient: Pubkey) -> Result<()> {
-        self.fee_recipient = recipient;
+    fn set_redemption_fee(&mut self, fee: u64) -> Result<()> {
+        if fee > FEE_BPS {
+            return Err(ErrorCode::InvalidFee.into());
+        }
+
+        self.redemption_fee = fee;
+        Ok(())
+    }
+
+    fn set_entry_fee(&mut self, fee: u64) -> Result<()> {
+        if fee > FEE_BPS {
+            return Err(ErrorCode::InvalidFee.into());
+        }
+        
+        self.entry_fee = fee;
         Ok(())
     }
 
@@ -71,8 +95,12 @@ impl Accountant for GenericAccountant {
         self.performance_fee
     }
 
-    fn fee_recipient(&self) -> Pubkey {
-        self.fee_recipient
+    fn entry_fee(&self) -> u64 {
+        self.entry_fee
+    }
+
+    fn redemption_fee(&self) -> u64 {
+        self.redemption_fee
     }
 
     fn save_changes(&self, writer: &mut dyn std::io::Write) -> Result<()> {

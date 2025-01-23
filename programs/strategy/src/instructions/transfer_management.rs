@@ -9,16 +9,12 @@ pub struct TransferManagement<'info> {
     #[account(mut)]
     pub strategy: UncheckedAccount<'info>,
     
-    #[account(mut)]
+    #[account(mut, constraint = signer.key() == strategy.manager() @ErrorCode::AccessDenied)]
     pub signer: Signer<'info>,
 }
 
 pub fn handle_transfer_management<'info>(ctx: Context<TransferManagement<'info>>, new_manager: Pubkey) -> Result<()> {
     let mut strategy = ctx.accounts.strategy.from_unchecked()?;
-
-    if *ctx.accounts.signer.key != strategy.manager() {
-        return Err(ErrorCode::AccessDenied.into());
-    }
 
     strategy.set_manager(new_manager)?;
     strategy.save_changes(&mut &mut ctx.accounts.strategy.try_borrow_mut_data()?[8..])

@@ -1,8 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    token::Token,
-    token_interface::TokenAccount,
-};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::error::ErrorCode;
 use crate::utils::unchecked_strategy::UncheckedStrategy;
@@ -19,6 +16,9 @@ pub struct WithdrawFee<'info> {
 
     #[account(mut, seeds = [UNDERLYING_SEED.as_bytes(), strategy.key().as_ref()], bump)]
     pub underlying_token_account: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(mut, constraint = underlying_mint.key() == strategy.underlying_mint())]
+    pub underlying_mint: InterfaceAccount<'info, Mint>,
     
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -26,7 +26,7 @@ pub struct WithdrawFee<'info> {
     #[account(mut)]
     pub recipient: InterfaceAccount<'info, TokenAccount>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 pub fn handle_withdraw_fee<'info>(
@@ -51,6 +51,7 @@ pub fn handle_withdraw_fee<'info>(
         let free_funds = &mut FreeFunds {
             strategy: ctx.accounts.strategy.clone(),
             underlying_token_account: ctx.accounts.underlying_token_account.clone(),
+            underlying_mint: ctx.accounts.underlying_mint.clone(),
             signer: ctx.accounts.signer.clone(),
             token_program: ctx.accounts.token_program.clone(),
         };
@@ -65,6 +66,7 @@ pub fn handle_withdraw_fee<'info>(
         ctx.accounts.underlying_token_account.to_account_info(), 
         ctx.accounts.recipient.to_account_info(), 
         ctx.accounts.strategy.to_account_info(), 
+        &ctx.accounts.underlying_mint,
         amount, 
         &strategy.seeds()
     )

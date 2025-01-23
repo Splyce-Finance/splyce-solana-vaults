@@ -1,9 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::Discriminator;
-use anchor_spl::{
-    token::{ Token, TokenAccount},
-    token_interface::Mint,
-};
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use access_control::{
     constants::USER_ROLE_SEED,
     program::AccessControl,
@@ -40,9 +37,9 @@ pub struct InitStrategy<'info> {
         token::mint = underlying_mint, 
         token::authority = strategy,
     )]
-    pub token_account: Box<Account<'info, TokenAccount>>,
+    pub token_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(seeds = [CONFIG_SEED.as_bytes()], bump)]
+    #[account(mut, seeds = [CONFIG_SEED.as_bytes()], bump)]
     pub config: Account<'info, Config>,
 
     /// CHECK: This should be a vault account
@@ -66,7 +63,7 @@ pub struct InitStrategy<'info> {
     #[account(mut, constraint = roles.check_role()?)]
     pub signer: Signer<'info>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
     pub access_control: Program<'info, AccessControl>,
@@ -79,6 +76,9 @@ pub fn handle_init_strategy(ctx: Context<InitStrategy>, strategy_type: StrategyT
         }
         StrategyType::TradeFintech => {
             return init_strategy_internal::<TradeFintechStrategy>(ctx, config)
+        }
+        StrategyType::Orca => {
+            return init_strategy_internal::<OrcaStrategy>(ctx, config)
         }
         _ => {
             return Err(ErrorCode::InvalidStrategyData.into())

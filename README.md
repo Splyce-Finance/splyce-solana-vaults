@@ -41,40 +41,48 @@ Deploy the compiled program to the Solana testnet or mainnet:
 
 `sudo anchor deploy`
 
-**Step 4: Set Roles**
+ 
+
+**Step 4: Initilize Porgrams**
+
+Run the predefined anchor run initialize script to initilize your program:
+
+`sudo anchor run initialize`
+
+**Step 5: Set Roles**
 
 Run the predefined set_roles script to configure roles in your program:
 
 `sudo anchor run set_roles`
 
-**Step 5: Mint the Underlying Token**
+**Step 6: Mint the Underlying Token**
 
 Initialize the minting process for the underlying token by running:
 
 `sudo anchor run underlying_mint`
 
-**Step 5.1: Capture the Mint Public Key**
+**Step 6.1: Capture the Mint Public Key**
 
-After running the above command, capture the Underlying Token Mint Public Key from the output (e.g., "4dCLhR7U8PzwXau6qfjr73tKgp5SD42aLbyo3XQNzY4V"). You will use this public key in later steps.
+After running the above command, capture the Underlying Token Mint Public Key from the output (e.g., "CWduyZkkj34f5YntKwD7NjkHaRt7kfiScopgEqu9RR6W"). You will use this public key in later steps.
 
 ----------------------------------------------------------------------------------------
 
 ****Vault Initialization****
 
-**Step 6: Update the create_default_vault_with_strategy.ts File**
+**Step 7: Update the create_default_vault_with_strategy.ts File**
 
 Edit the file create_default_vault_with_strategy.ts:
     Replace the underlying_mint on line 29 with the public key you captured in Step 5.1.
-    Set the index to 0 in the same file.
+    ~~Set the index to 0 in the same file.~~
 
-**Step 7: Initialize the Vault**
+**Step 7.1: Initialize the Vault**
 
 Run the initialization script for the default vault:
 `sudo anchor run init_vault`
 
-**Step 8: Update the Index in the Script**
+~~ ** Step 8: Update the Index in the Script ** ~~
 
-Go back to the create_default_vault_with_strategy.ts file and update the index to 1.
+~~Go back to the create_default_vault_with_strategy.ts file and update the index to 1.~~
 
 **Step 9: Initialize the Vault Again**
 
@@ -90,11 +98,13 @@ Run the initialization script once more:
 
 Edit the file create_vault_with_trade_fi_strategy.ts:
     Replace the underlying_mint on line 29 with the public key from Step 5.1.
-    Set the index to 2.
+    ~~Set the index to 2.~~
 
 **Step 11: Initialize TradeFi**
 
 Run the initialization script for the TradeFi strategy:
+
+Note: update the depositPeriodEnds and lockPeriodEnds fields at line #161 and #163.
 
 `sudo anchor run init_trade_fi`
 
@@ -103,6 +113,8 @@ Run the initialization script for the TradeFi strategy:
 ****Faucet Initialization****
 
 **Step 12: Initialize the Faucet**
+
+Note: Replace the underlying_mint on line 24 with the public key you captured in Step 5.1.
 
 Run the faucet initialization script:
 

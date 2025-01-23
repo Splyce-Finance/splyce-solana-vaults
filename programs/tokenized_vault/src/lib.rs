@@ -10,7 +10,7 @@ use anchor_lang::prelude::*;
 pub use state::{SharesConfig, VaultConfig};
 pub use instructions::*;
 
-declare_id!("8eDcyX8Z8yZXBQsuatwxDC1qzGbuUbP7wGERDBQoPmBH");
+declare_id!("8Y5ZEEnhiNdvGHbfiZVj2eSawrNrQTKd9jPEFqnnKizC");
 
 #[program]
 pub mod tokenized_vault {
@@ -28,8 +28,16 @@ pub mod tokenized_vault {
         handle_init_vault_shares(ctx, index, config)
     }
 
+    pub fn init_withdraw_shares_account(ctx: Context<InitWithdrawSharesAccount>) -> Result<()> {
+        handle_init_withdraw_pool(ctx)
+    }
+
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
         handle_deposit(ctx, amount)
+    }
+
+    pub fn direct_deposit<'info>(ctx: Context<'_, '_, '_, 'info, DirectDeposit<'info>>, amount: u64) -> Result<()> {
+        handle_direct_deposit(ctx, amount)
     }
 
     pub fn withdraw<'info>(
@@ -38,8 +46,7 @@ pub mod tokenized_vault {
         max_loss: u64,
         remaining_accounts_map: AccountsMap
     ) -> Result<()> {
-        let shares = ctx.accounts.vault.load()?.convert_to_shares(amount);
-        handle_withdraw(ctx, amount, shares, max_loss, remaining_accounts_map)
+        handle_withdraw(ctx, amount, max_loss, remaining_accounts_map)
     }
     
     pub fn redeem<'info>(
@@ -48,8 +55,32 @@ pub mod tokenized_vault {
         max_loss: u64,
         remaining_accounts_map: AccountsMap
     ) -> Result<()> {
-        let amount = ctx.accounts.vault.load()?.convert_to_underlying(shares);
-        handle_withdraw(ctx, amount, shares, max_loss, remaining_accounts_map)
+        handle_redeem(ctx, shares, max_loss, remaining_accounts_map)
+    }
+
+    pub fn request_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
+        amount: u64, 
+        max_loss: u64
+    ) -> Result<()> {
+        handle_request_withdraw(ctx, amount, max_loss)
+    }
+
+    pub fn request_redeem<'info>(
+        ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
+        shares: u64, 
+        max_loss: u64
+    ) -> Result<()> {
+        handle_request_redeem(ctx, shares, max_loss)
+    }
+
+    pub fn cancel_withdrawal_request(ctx: Context<CancelWithdrawalRequest>) -> Result<()> {
+        handle_cancel_withdrawal_request(ctx)
+    }
+
+    pub fn fulfill_withdrawal_request(ctx: Context<FulfillWithdrawalRequest>, 
+    ) -> Result<()> {
+        handle_fulfill_withdrawal_request(ctx)
     }
 
     pub fn add_strategy(ctx: Context<AddStrategy>, max_debt: u64) -> Result<()> {
@@ -67,8 +98,44 @@ pub mod tokenized_vault {
         handle_update_debt(ctx, amount)
     }
 
-    pub fn set_deposit_limit(ctx: Context<SetDepositLimit>, limit: u64) -> Result<()> {
+    pub fn whitelist(ctx: Context<Whitelist>, user: Pubkey) -> Result<()> {
+        handle_whitelist(ctx, user)
+    }
+
+    pub fn revoke_whitelisting(ctx: Context<RevokeWhitelisting>, user: Pubkey) -> Result<()> {
+        handle_revoke_whitelisting(ctx, user)
+    }
+
+    pub fn set_deposit_limit(ctx: Context<SetVaultProperty>, limit: u64) -> Result<()> {
         handle_set_deposit_limit(ctx, limit)
+    }
+
+    pub fn set_min_user_deposit(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+        handle_set_min_user_deposit(ctx, value)
+    }
+
+    pub fn set_profit_max_unlock_time(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+        handle_set_profit_max_unlock_time(ctx, value)
+    }
+
+    pub fn set_min_total_idle(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+        handle_set_min_total_idle(ctx, value)
+    }
+
+    pub fn set_direct_withdraw_enabled(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_direct_withdraw_enabled(ctx, value)
+    }
+
+    pub fn set_user_deposit_limit(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+        handle_set_user_deposit_limit(ctx, value)
+    }
+
+    pub fn set_whitelisted_only(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_whitelisted_only(ctx, value)
+    }
+
+    pub fn set_accountant(ctx: Context<SetVaultProperty>, value: Pubkey) -> Result<()> {
+        handle_set_accountant(ctx, value)
     }
 
     pub fn process_report(ctx: Context<ProcessReport>) -> Result<()> {

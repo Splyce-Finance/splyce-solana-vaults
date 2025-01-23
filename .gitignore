@@ -7,3 +7,4 @@ yarn.lock
 test-ledger
 .env
 build/qase-report
+.DS_Store

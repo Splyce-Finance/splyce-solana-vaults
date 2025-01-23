@@ -23,3 +23,5 @@ idl-build = [
 anchor-lang = "0.30.1"
 anchor-spl = { version = "0.30.1", features = ["metadata"] }
 access_control = { path = "../access_control", features=["no-entrypoint", "cpi"] }
+whirlpool-cpi = { git = "https://github.com/orca-so/whirlpool-cpi", branch = "anchor/0.30.1" }
+uint = "=0.9.5"

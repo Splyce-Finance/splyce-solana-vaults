@@ -1,136 +1,105 @@
 import * as anchor from "@coral-xyz/anchor";
-import { BN } from "@coral-xyz/anchor";
-import * as token from "@solana/spl-token";
+import {
+  accessControlProgram,
+  accountantProgram,
+  configOwner,
+  connection,
+  provider,
+  strategyProgram,
+  vaultProgram,
+  METADATA_SEED,
+  TOKEN_METADATA_PROGRAM_ID,
+} from "../setups/globalSetup";
 import { assert, expect } from "chai";
-import { SimpleStrategyConfig } from "../../utils/schemas";
+import { errorStrings, ROLES, ROLES_BUFFER } from "../../utils/constants";
+import { BN } from "@coral-xyz/anchor";
 import {
   airdrop,
   initializeSimpleStrategy,
   initializeVault,
 } from "../../utils/helpers";
-import {
-  vaultProgram,
-  strategyProgram,
-  rolesAdmin,
-  connection,
-} from "../setups/globalSetup";
+import * as token from "@solana/spl-token";
+import { SimpleStrategyConfig } from "../../utils/schemas";
 
-describe("Roles & Permissions Tests", () => {
+describe("Roles and Permissions Tests", () => {
+  // Test Role Accounts
+  let rolesAdmin: anchor.web3.Keypair;
+  let accountantAdmin: anchor.web3.Keypair;
+  let strategiesManager: anchor.web3.Keypair;
   let vaultsAdmin: anchor.web3.Keypair;
   let reportingManager: anchor.web3.Keypair;
-  let whitelistedUser: anchor.web3.Keypair;
-  let whitelistedUserTokenAccount: anchor.web3.PublicKey;
+  let kycProvider: anchor.web3.Keypair;
+  let kycVerifiedUser: anchor.web3.Keypair;
+  let nonVerifiedUser: anchor.web3.Keypair;
+
+  // Accountant vars
+  let accountantConfig: anchor.web3.PublicKey;
+  let accountantConfigAccount: { nextAccountantIndex: BN };
+  const accountantType = { generic: {} };
+
+  // Common underlying mint and owner
   let underlyingMint: anchor.web3.PublicKey;
   let underlyingMintOwner: anchor.web3.Keypair;
 
-  // First - For Role Admin
+  // User token and shares accounts
+  let kycVerifiedUserTokenAccount: anchor.web3.PublicKey;
+  let kycVerifiedUserSharesAccountVaultOne: anchor.web3.PublicKey;
+  let kycVerifiedUserCurrentAmount: number;
+  let strategiesManagerOneTokenAccount: anchor.web3.PublicKey;
+  let strategiesManagerCurrentAmount: number;
+  let nonVerifiedUserTokenAccount: anchor.web3.PublicKey;
+  let nonVerifiedUserCurrentAmount: number;
+
+  // First Test Vault
   let vaultOne: anchor.web3.PublicKey;
   let sharesMintOne: anchor.web3.PublicKey;
   let metadataAccountOne: anchor.web3.PublicKey;
   let vaultTokenAccountOne: anchor.web3.PublicKey;
   let strategyOne: anchor.web3.PublicKey;
   let strategyTokenAccountOne: anchor.web3.PublicKey;
-  // Second - For Vault Admin
-  let vaultTwo: anchor.web3.PublicKey;
-  let sharesMintTwo: anchor.web3.PublicKey;
-  let metadataAccountTwo: anchor.web3.PublicKey;
-  let vaultTokenAccountTwo: anchor.web3.PublicKey;
-  let strategyTwo: anchor.web3.PublicKey;
-  let strategyTokenAccountTwo: anchor.web3.PublicKey;
-  // Third - For Reporting Manager
-  let vaultThree: anchor.web3.PublicKey;
-  let sharesMintThree: anchor.web3.PublicKey;
-  let metadataAccountThree: anchor.web3.PublicKey;
-  let vaultTokenAccountThree: anchor.web3.PublicKey;
-  let strategyThree: anchor.web3.PublicKey;
-  let strategyTokenAccountThree: anchor.web3.PublicKey;
-  // Fourth - For whitelisted user and regular / non-whitelisted user
-  let vaultFour: anchor.web3.PublicKey;
-  let sharesMintFour: anchor.web3.PublicKey;
-  let metadataAccountFour: anchor.web3.PublicKey;
-  let vaultTokenAccountFour: anchor.web3.PublicKey;
-  let strategyFour: anchor.web3.PublicKey;
-  let strategyTokenAccountFour: anchor.web3.PublicKey;
-
-  const vaultsAdminObj = { vaultsAdmin: {} };
-  const reportingManagerObj = { reportingManager: {} };
-  const whitelistedObj = { whitelisted: {} };
-
-  let vaultConfig: any;
-  let strategyConfig: SimpleStrategyConfig;
-
-  const anchorError3012 =
-    "Error Code: AccountNotInitialized. Error Number: 3012. Error Message: The program expected this account to be already initialized.";
-  const anchorError2012 =
-    "Error Code: ConstraintAddress. Error Number: 2012. Error Message: An address constraint was violated.";
-  const anchorError2003 =
-    "Error Code: ConstraintRaw. Error Number: 2003. Error Message: A raw constraint was violated.";
+  let accountantOne: anchor.web3.PublicKey;
+  let feeRecipientOne: anchor.web3.Keypair;
+  let feeRecipientSharesAccountOne: anchor.web3.PublicKey;
+  let feeRecipientTokenAccountOne: anchor.web3.PublicKey;
 
   before(async () => {
     console.log("-------Before Step Started-------");
+    // Generate Test Role Accounts
+    rolesAdmin = configOwner;
+    accountantAdmin = anchor.web3.Keypair.generate();
+    strategiesManager = anchor.web3.Keypair.generate();
     vaultsAdmin = anchor.web3.Keypair.generate();
     reportingManager = anchor.web3.Keypair.generate();
-    whitelistedUser = anchor.web3.Keypair.generate();
-    underlyingMintOwner = rolesAdmin;
-
-    console.log("Vault Program ID:", vaultProgram.programId.toBase58());
-    console.log("Strategy Program ID:", strategyProgram.programId.toBase58());
-    console.log(
-      "Underlying Mint Token Owner key: ",
-      underlyingMintOwner.publicKey.toBase58()
-    );
-    console.log("Vaults Admin public key:", vaultsAdmin.publicKey.toBase58());
-    console.log(
-      "Reporting Manager public key:",
-      reportingManager.publicKey.toBase58()
-    );
-    console.log(
-      "Whitelisted User public key:",
-      whitelistedUser.publicKey.toBase58()
-    );
+    kycProvider = anchor.web3.Keypair.generate();
+    kycVerifiedUser = anchor.web3.Keypair.generate();
+    nonVerifiedUser = anchor.web3.Keypair.generate();
+    feeRecipientOne = anchor.web3.Keypair.generate();
 
     // Airdrop to all accounts
     const publicKeysList = [
+      accountantAdmin.publicKey,
+      strategiesManager.publicKey,
       vaultsAdmin.publicKey,
       reportingManager.publicKey,
-      whitelistedUser.publicKey,
+      kycProvider.publicKey,
+      kycVerifiedUser.publicKey,
+      nonVerifiedUser.publicKey,
+      feeRecipientOne.publicKey,
     ];
     for (const publicKey of publicKeysList) {
       await airdrop({
         connection,
         publicKey,
-        amount: 100e9,
+        amount: 10e9,
       });
     }
 
-    // Set Roles for the common accounts
-    await vaultProgram.methods
-      .setRole(vaultsAdminObj, vaultsAdmin.publicKey)
-      .accounts({
-        signer: rolesAdmin.publicKey,
-      })
-      .signers([rolesAdmin])
-      .rpc();
+    console.log(
+      "Generate keypairs and airdrop to all test accounts successfully"
+    );
 
-    await vaultProgram.methods
-      .setRole(reportingManagerObj, reportingManager.publicKey)
-      .accounts({
-        signer: rolesAdmin.publicKey,
-      })
-      .signers([rolesAdmin])
-      .rpc();
-
-    await vaultProgram.methods
-      .setRole(whitelistedObj, whitelistedUser.publicKey)
-      .accounts({
-        signer: rolesAdmin.publicKey,
-      })
-      .signers([rolesAdmin])
-      .rpc();
-
-    console.log("All roles set successfully");
-
-    // Create common underlying mint account
+    // Create common underlying mint account and set underlying mint owner
+    underlyingMintOwner = configOwner;
     underlyingMint = await token.createMint(
       connection,
       underlyingMintOwner,
@@ -139,1323 +108,5820 @@ describe("Roles & Permissions Tests", () => {
       9
     );
 
-    console.log("Underlying mint created successfully");
+    console.log(
+      "Underlying mint owner and underlying mint set up successfully"
+    );
 
-    // Initialize vaults and strategies
-    vaultConfig = {
-      name: "Roles & Permissions Test",
-      symbol: "RPT",
-      uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+    // Set Corresponding Roles
+    await accessControlProgram.methods
+      .setRole(ROLES.ACCOUNTANT_ADMIN, accountantAdmin.publicKey)
+      .accounts({
+        signer: rolesAdmin.publicKey,
+      })
+      .signers([rolesAdmin])
+      .rpc();
+    await accessControlProgram.methods
+      .setRole(ROLES.STRATEGIES_MANAGER, strategiesManager.publicKey)
+      .accounts({
+        signer: rolesAdmin.publicKey,
+      })
+      .signers([rolesAdmin])
+      .rpc();
+    await accessControlProgram.methods
+      .setRole(ROLES.VAULTS_ADMIN, vaultsAdmin.publicKey)
+      .accounts({
+        signer: rolesAdmin.publicKey,
+      })
+      .signers([rolesAdmin])
+      .rpc();
+    await accessControlProgram.methods
+      .setRole(ROLES.REPORTING_MANAGER, reportingManager.publicKey)
+      .accounts({
+        signer: rolesAdmin.publicKey,
+      })
+      .signers([rolesAdmin])
+      .rpc();
+    await accessControlProgram.methods
+      .setRole(ROLES.KYC_PROVIDER, kycProvider.publicKey)
+      .accounts({
+        signer: rolesAdmin.publicKey,
+      })
+      .signers([rolesAdmin])
+      .rpc();
+    await accessControlProgram.methods
+      .setRole(ROLES.KYC_VERIFIED, kycVerifiedUser.publicKey)
+      .accounts({
+        signer: kycProvider.publicKey,
+      })
+      .signers([kycProvider])
+      .rpc();
+    console.log("Set all roles successfully");
+
+    // Set up accountant config
+    accountantConfig = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("config")],
+      accountantProgram.programId
+    )[0];
+
+    // Set up test vaults and strategies
+    // Vault One
+    accountantConfigAccount = await accountantProgram.account.config.fetch(
+      accountantConfig
+    );
+    accountantOne = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from(
+          new Uint8Array(
+            new BigUint64Array([
+              BigInt(accountantConfigAccount.nextAccountantIndex.toNumber()),
+            ]).buffer
+          )
+        ),
+      ],
+      accountantProgram.programId
+    )[0];
+
+    await accountantProgram.methods
+      .initAccountant(accountantType)
+      .accounts({
+        signer: accountantAdmin.publicKey,
+      })
+      .signers([accountantAdmin])
+      .rpc();
+
+    const vaultConfigOne = {
       depositLimit: new BN(1000000000),
       minUserDeposit: new BN(0),
-      performanceFee: new BN(1000),
+      accountant: accountantOne,
       profitMaxUnlockTime: new BN(0),
+      kycVerifiedOnly: true,
+      directDepositEnabled: false,
+      whitelistedOnly: false,
     };
 
-    strategyConfig = new SimpleStrategyConfig({
-      depositLimit: new BN(1000),
-      performanceFee: new BN(1),
-      // @ts-ignore
-      feeManager: vaultsAdmin.publicKey,
-    });
+    const sharesConfigOne = {
+      name: "Test Roles and Permissions One",
+      symbol: "TRPV1",
+      uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+    };
 
-    [vaultOne, sharesMintOne, metadataAccountOne, vaultTokenAccountOne] = await initializeVault({
-      vaultProgram,
-      underlyingMint,
-      vaultIndex: 1,
-      signer: vaultsAdmin,
-      config: vaultConfig,
-    });
-
-    [vaultTwo, sharesMintTwo, metadataAccountTwo, vaultTokenAccountTwo] = await initializeVault({
-      vaultProgram,
-      underlyingMint,
-      vaultIndex: 2,
-      signer: vaultsAdmin,
-      config: vaultConfig,
-    });
-
-    [vaultThree, sharesMintThree, metadataAccountThree, vaultTokenAccountThree] =
+    [vaultOne, sharesMintOne, metadataAccountOne, vaultTokenAccountOne] =
       await initializeVault({
         vaultProgram,
         underlyingMint,
-        vaultIndex: 3,
         signer: vaultsAdmin,
-        config: vaultConfig,
+        vaultConfig: vaultConfigOne,
+        sharesConfig: sharesConfigOne,
       });
 
-    [vaultFour, sharesMintFour, metadataAccountFour, vaultTokenAccountFour] = await initializeVault({
-      vaultProgram,
+    feeRecipientSharesAccountOne = await token.createAccount(
+      provider.connection,
+      feeRecipientOne,
+      sharesMintOne,
+      feeRecipientOne.publicKey
+    );
+    feeRecipientTokenAccountOne = await token.createAccount(
+      provider.connection,
+      feeRecipientOne,
       underlyingMint,
-      vaultIndex: 4,
-      signer: vaultsAdmin,
-      config: vaultConfig,
-    });
+      feeRecipientOne.publicKey
+    );
 
-    console.log("All Vaults initialized successfully");
+    const strategyConfigOne = new SimpleStrategyConfig({
+      depositLimit: new BN(1000),
+      performanceFee: new BN(1000),
+      feeManager: strategiesManager.publicKey,
+    });
 
     [strategyOne, strategyTokenAccountOne] = await initializeSimpleStrategy({
       strategyProgram,
       vault: vaultOne,
       underlyingMint,
-      signer: vaultsAdmin,
-      index: 1,
-      config: strategyConfig,
+      signer: strategiesManager,
+      config: strategyConfigOne,
     });
 
-    [strategyTwo, strategyTokenAccountTwo] = await initializeSimpleStrategy({
-      strategyProgram,
-      vault: vaultTwo,
-      underlyingMint,
-      signer: vaultsAdmin,
-      index: 1,
-      config: strategyConfig,
-    });
+    await vaultProgram.methods
+      .addStrategy(new BN(1000000000))
+      .accounts({
+        vault: vaultOne,
+        strategy: strategyOne,
+        signer: vaultsAdmin.publicKey,
+      })
+      .signers([vaultsAdmin])
+      .rpc();
 
-    [strategyThree, strategyTokenAccountThree] = await initializeSimpleStrategy(
-      {
-        strategyProgram,
-        vault: vaultThree,
-        underlyingMint,
-        signer: vaultsAdmin,
-        index: 1,
-        config: strategyConfig,
-      }
-    );
+    console.log("Initialized vaults and strategies successfully");
 
-    [strategyFour, strategyTokenAccountFour] = await initializeSimpleStrategy({
-      strategyProgram,
-      vault: vaultFour,
-      underlyingMint,
-      signer: vaultsAdmin,
-      index: 1,
-      config: strategyConfig,
-    });
+    // Create token accounts and mint underlying tokens
+    await accountantProgram.methods
+      .initTokenAccount()
+      .accounts({
+        accountant: accountantOne,
+        signer: accountantAdmin.publicKey,
+        mint: sharesMintOne,
+      })
+      .signers([accountantAdmin])
+      .rpc();
 
-    console.log("All Strategies initialized successfully");
+    await accountantProgram.methods
+      .initTokenAccount()
+      .accounts({
+        accountant: accountantOne,
+        signer: accountantAdmin.publicKey,
+        mint: underlyingMint,
+      })
+      .signers([accountantAdmin])
+      .rpc();
 
-    // Create whitelisted user token and shares accounts and mint underlying tokens
-    whitelistedUserTokenAccount = await token.createAccount(
+    kycVerifiedUserTokenAccount = await token.createAccount(
       connection,
-      whitelistedUser,
+      kycVerifiedUser,
       underlyingMint,
-      whitelistedUser.publicKey
+      kycVerifiedUser.publicKey
     );
-    console.log("Whitelisted user token account created successfully");
+
+    kycVerifiedUserSharesAccountVaultOne = await token.createAccount(
+      provider.connection,
+      kycVerifiedUser,
+      sharesMintOne,
+      kycVerifiedUser.publicKey
+    );
+
+    strategiesManagerOneTokenAccount = await token.createAccount(
+      connection,
+      strategiesManager,
+      underlyingMint,
+      strategiesManager.publicKey
+    );
+
+    nonVerifiedUserTokenAccount = await token.createAccount(
+      connection,
+      nonVerifiedUser,
+      underlyingMint,
+      nonVerifiedUser.publicKey
+    );
+
+    console.log("Token accounts and shares accounts created successfully");
+
+    const mintAmount = 1000;
+
     await token.mintTo(
       connection,
       underlyingMintOwner,
       underlyingMint,
-      whitelistedUserTokenAccount,
+      kycVerifiedUserTokenAccount,
       underlyingMintOwner.publicKey,
-      1000
+      mintAmount
     );
-    console.log(
-      "Minted 1000 underlying tokens to Whitelisted user successfully"
+
+    await token.mintTo(
+      connection,
+      underlyingMintOwner,
+      underlyingMint,
+      strategiesManagerOneTokenAccount,
+      underlyingMintOwner.publicKey,
+      mintAmount
     );
+
+    await token.mintTo(
+      connection,
+      underlyingMintOwner,
+      underlyingMint,
+      nonVerifiedUserTokenAccount,
+      underlyingMintOwner.publicKey,
+      mintAmount
+    );
+
+    kycVerifiedUserCurrentAmount = mintAmount;
+    strategiesManagerCurrentAmount = mintAmount;
+    nonVerifiedUserCurrentAmount = mintAmount;
+
+    console.log("Minted underlying token to all users successfully");
+
     console.log("-------Before Step Finished-------");
   });
 
-  describe("Roles Admin Role Tests", () => {
-    it("Roles Admin - Setting Vaults Admin role is successful", async function () {
-      this.qaseId(12);
-      const vaultsAdminUserInner = anchor.web3.Keypair.generate();
-      await vaultProgram.methods
-        .setRole(vaultsAdminObj, vaultsAdminUserInner.publicKey)
-        .accounts({
-          signer: rolesAdmin.publicKey,
-        })
-        .signers([rolesAdmin])
-        .rpc();
-      const accountRoles = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("roles"), vaultsAdminUserInner.publicKey.toBuffer()],
-        vaultProgram.programId
-      )[0];
-      const vaultAdminAccount = await vaultProgram.account.accountRoles.fetch(
-        accountRoles
+  describe("Accountant Admin Role Tests", () => {
+    it("Accountant Admin - Init accountant is successful", async function () {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
       );
-      assert.isTrue(vaultAdminAccount.isVaultsAdmin);
-      assert.isTrue(!vaultAdminAccount.isReportingManager);
-      assert.isTrue(!vaultAdminAccount.isWhitelisted);
-    });
-
-    it("Roles Admin - Setting Reporting Manager role is successful", async function () {
-      this.qaseId(13);
-      const reportingManagerUserInner = anchor.web3.Keypair.generate();
-      await vaultProgram.methods
-        .setRole(reportingManagerObj, reportingManagerUserInner.publicKey)
+      const nextAccountantIndexBefore =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      await accountantProgram.methods
+        .initAccountant(accountantType)
         .accounts({
-          signer: rolesAdmin.publicKey,
+          signer: accountantAdmin.publicKey,
         })
-        .signers([rolesAdmin])
+        .signers([accountantAdmin])
         .rpc();
-      const accountRoles = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("roles"), reportingManagerUserInner.publicKey.toBuffer()],
-        vaultProgram.programId
-      )[0];
-      const reportingManagerAccount =
-        await vaultProgram.account.accountRoles.fetch(accountRoles);
-      assert.isTrue(reportingManagerAccount.isReportingManager);
-      assert.isTrue(!reportingManagerAccount.isVaultsAdmin);
-      assert.isTrue(!reportingManagerAccount.isWhitelisted);
-    });
 
-    it("Roles Admin - Setting Whitelisted role is successful", async function () {
-      this.qaseId(14);
-      const whitelistedUserInner = anchor.web3.Keypair.generate();
-      await vaultProgram.methods
-        .setRole(whitelistedObj, whitelistedUserInner.publicKey)
-        .accounts({
-          signer: rolesAdmin.publicKey,
-        })
-        .signers([rolesAdmin])
-        .rpc();
-      const accountRoles = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("roles"), whitelistedUserInner.publicKey.toBuffer()],
-        vaultProgram.programId
-      )[0];
-      const whitelistedAccount = await vaultProgram.account.accountRoles.fetch(
-        accountRoles
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
       );
-      assert.isTrue(whitelistedAccount.isWhitelisted);
-      assert.isTrue(!whitelistedAccount.isVaultsAdmin);
-      assert.isTrue(!whitelistedAccount.isReportingManager);
-    });
-
-    it("Roles Admin - Setting all 3 roles to the same user is successful", async function () {
-      this.qaseId(15);
-      const allRolesUser = anchor.web3.Keypair.generate();
-      await vaultProgram.methods
-        .setRole(vaultsAdminObj, allRolesUser.publicKey)
-        .accounts({
-          signer: rolesAdmin.publicKey,
-        })
-        .signers([rolesAdmin])
-        .rpc();
-      await vaultProgram.methods
-        .setRole(reportingManagerObj, allRolesUser.publicKey)
-        .accounts({
-          signer: rolesAdmin.publicKey,
-        })
-        .signers([rolesAdmin])
-        .rpc();
-      await vaultProgram.methods
-        .setRole(whitelistedObj, allRolesUser.publicKey)
-        .accounts({
-          signer: rolesAdmin.publicKey,
-        })
-        .signers([rolesAdmin])
-        .rpc();
-      const accountRoles = anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("roles"), allRolesUser.publicKey.toBuffer()],
-        vaultProgram.programId
-      )[0];
-      const allRolesAccount = await vaultProgram.account.accountRoles.fetch(
-        accountRoles
+      const nextAccountantIndexAfter =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      assert.strictEqual(
+        nextAccountantIndexAfter,
+        nextAccountantIndexBefore + 1
       );
-      assert.isTrue(allRolesAccount.isWhitelisted);
-      assert.isTrue(allRolesAccount.isVaultsAdmin);
-      assert.isTrue(allRolesAccount.isReportingManager);
     });
 
-    // Drop role not working currently
-    // it.skip("Roles Admin - Can successfully drop a role", async function () {
-    //   this.qaseId(24);
-    //   const allRolesUser = anchor.web3.Keypair.generate();
-    //   await vaultProgram.methods
-    //     .setRole(vaultsAdminObj, allRolesUser.publicKey)
-    //     .accounts({
-    //       signer: rolesAdmin.publicKey,
-    //     })
-    //     .signers([rolesAdmin])
-    //     .rpc();
-    //   await vaultProgram.methods
-    //     .setRole(reportingManagerObj, allRolesUser.publicKey)
-    //     .accounts({
-    //       signer: rolesAdmin.publicKey,
-    //     })
-    //     .signers([rolesAdmin])
-    //     .rpc();
-    //   await vaultProgram.methods
-    //     .setRole(whitelistedObj, allRolesUser.publicKey)
-    //     .accounts({
-    //       signer: rolesAdmin.publicKey,
-    //     })
-    //     .signers([rolesAdmin])
-    //     .rpc();
-    //   const accountRoles = anchor.web3.PublicKey.findProgramAddressSync(
-    //     [Buffer.from("roles"), allRolesUser.publicKey.toBuffer()],
-    //     vaultProgram.programId
-    //   )[0];
-    //   const allRolesAccount = await vaultProgram.account.accountRoles.fetch(
-    //     accountRoles
-    //   );
-    //   assert.isTrue(allRolesAccount.isWhitelisted);
-    //   assert.isTrue(allRolesAccount.isVaultsAdmin);
-    //   assert.isTrue(allRolesAccount.isReportingManager);
-    //   await vaultProgram.methods
-    //     .dropRole(reportingManagerObj)
-    //     .accounts({
-    //       user: allRolesUser.publicKey,
-    //       signer: rolesAdmin.publicKey,
-    //     })
-    //     .signers([rolesAdmin])
-    //     .rpc();
-    //   await vaultProgram.methods
-    //     .dropRole(whitelistedObj)
-    //     .accounts({
-    //       user: allRolesUser.publicKey,
-    //       signer: rolesAdmin.publicKey,
-    //     })
-    //     .signers([rolesAdmin])
-    //     .rpc();
-    //   assert.isTrue(allRolesAccount.isVaultsAdmin);
-    //   assert.isTrue(!allRolesAccount.isWhitelisted);
-    //   assert.isTrue(!allRolesAccount.isReportingManager);
-    // });
+    it("Accountant Admin - Calling set fee method is successful", async function () {
+      await accountantProgram.methods
+        .setPerformanceFee(new BN(500))
+        .accounts({
+          accountant: accountantOne,
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
 
-    it("Roles Admin - Initializing vault should revert", async function () {
-      this.qaseId(16);
+      let genericAccountant =
+        await accountantProgram.account.genericAccountant.fetch(accountantOne);
+      assert.strictEqual(genericAccountant.performanceFee.toNumber(), 500);
+    });
+
+    it("Accountant Admin - Calling distribute method is successful", async function () {
       try {
-        await initializeVault({
-          vaultProgram,
-          underlyingMint,
-          vaultIndex: 5,
-          signer: rolesAdmin,
-          config: vaultConfig,
-        });
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError3012);
+        await accountantProgram.methods
+          .distribute()
+          .accounts({
+            recipient: feeRecipientSharesAccountOne,
+            accountant: accountantOne,
+            underlyingMint: sharesMintOne,
+            signer: accountantAdmin.publicKey,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.isTrue(true);
+      } catch {
+        assert.fail("Error was thrown");
       }
     });
 
-    it("Roles Admin - Adding a strategy to the vault should revert", async function () {
-      this.qaseId(17);
+    it("Accountant Admin - Calling init strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      try {
+        await initializeSimpleStrategy({
+          strategyProgram,
+          vault: vaultOne,
+          underlyingMint,
+          signer: accountantAdmin,
+          config: strategyConfig,
+        });
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("Accountant Admin - Calling add strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
       try {
         await vaultProgram.methods
           .addStrategy(new BN(1000000000))
           .accounts({
             vault: vaultOne,
-            strategy: strategyOne,
-            signer: rolesAdmin.publicKey,
+            strategy,
+            signer: accountantAdmin.publicKey,
           })
-          .signers([rolesAdmin])
+          .signers([accountantAdmin])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError3012);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(strategyData);
+      assert.isNull(strategyDataAccount);
     });
 
-    it("Roles Admin - Removing a strategy from the vault should revert", async function () {
-      this.qaseId(18);
+    it("Accountant Admin - Calling remove strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
       await vaultProgram.methods
         .addStrategy(new BN(1000000000))
         .accounts({
           vault: vaultOne,
-          strategy: strategyOne,
+          strategy,
           signer: vaultsAdmin.publicKey,
         })
         .signers([vaultsAdmin])
         .rpc();
+
+      const strategyDataBefore = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
       try {
         await vaultProgram.methods
-          .removeStrategy(strategyOne, false)
+          .removeStrategy(strategy, false)
           .accounts({
             vault: vaultOne,
-            signer: rolesAdmin.publicKey,
+            strategyData: strategyDataBefore,
+            recipient: vaultsAdmin.publicKey,
+            signer: accountantAdmin.publicKey,
           })
-          .signers([rolesAdmin])
+          .signers([accountantAdmin])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError3012);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
+
+      const strategyDataAfter = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(
+          strategyDataAfter
+        );
+      assert.isNotNull(strategyDataAccount);
     });
 
-    it("Roles Admin - Shutting down the vault should revert", async function () {
-      this.qaseId(19);
-      try {
-        await vaultProgram.methods
-          .shutdownVault()
-          .accounts({
-            vault: vaultOne,
-            signer: rolesAdmin.publicKey,
-          })
-          .signers([rolesAdmin])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError3012);
-      }
-    });
+    it("Accountant Admin - Calling init vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
 
-    it("Roles Admin - Update debt for the vault should revert", async function () {
-      this.qaseId(20);
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
       try {
         await vaultProgram.methods
-          .updateDebt(new BN(100))
+          .initVault(vaultConfig)
           .accounts({
-            vault: vaultOne,
-            strategy: strategyOne,
-            strategyTokenAccount: strategyTokenAccountOne,
-            signer: rolesAdmin.publicKey,
-            // @ts-ignore
+            underlyingMint,
+            signer: accountantAdmin.publicKey,
             tokenProgram: token.TOKEN_PROGRAM_ID,
-            strategyProgram: strategyProgram.programId,
           })
-          .signers([rolesAdmin])
+          .signers([accountantAdmin])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError3012);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
     });
 
-    it("Roles Admin - Set deposit limit for the vault should revert", async function () {
-      this.qaseId(21);
-      try {
-        await vaultProgram.methods
-          .setDepositLimit(new BN(2000))
-          .accounts({
-            vault: vaultOne,
-            signer: rolesAdmin.publicKey,
-          })
-          .signers([rolesAdmin])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError3012);
-      }
-    });
+    it("Accountant Admin - Calling init vault shares method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
 
-    it("Roles Admin - Process report for the vault should revert", async function () {
-      this.qaseId(22);
-      const feeRecipient = anchor.web3.Keypair.generate();
-      await airdrop({
-        connection,
-        publicKey: feeRecipient.publicKey,
-        amount: 10e9,
-      });
-      const feeRecipientSharesAccount = await token.createAccount(
-        connection,
-        feeRecipient,
-        sharesMintOne,
-        feeRecipient.publicKey
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      await vaultProgram.methods
+        .initVault(vaultConfig)
+        .accounts({
+          underlyingMint,
+          signer: vaultsAdmin.publicKey,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const config = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("config")],
+        vaultProgram.programId
+      )[0];
+
+      let configAccount = await vaultProgram.account.config.fetch(config);
+
+      const nextVaultIndex = configAccount.nextVaultIndex.toNumber();
+
+      const vault = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("vault"),
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(nextVaultIndex)]).buffer)
+          ),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const sharesMint = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("shares"), vault.toBuffer()],
+        vaultProgram.programId
+      )[0];
+
+      const [metadataAddress] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(METADATA_SEED),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          sharesMint.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
       );
 
+      const sharesConfig = {
+        name: "Localnet Tests Token",
+        symbol: "LTT1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
       try {
         await vaultProgram.methods
-          .processReport()
+          .initVaultShares(new BN(nextVaultIndex), sharesConfig)
           .accounts({
-            vault: vaultOne,
-            strategy: strategyOne,
-            signer: rolesAdmin.publicKey,
-            feeSharesRecipient: feeRecipientSharesAccount,
+            metadata: metadataAddress,
+            signer: accountantAdmin.publicKey,
           })
-          .signers([rolesAdmin])
+          .signers([accountantAdmin])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError3012);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
+
+      let configAccountAfter = await vaultProgram.account.config.fetch(config);
+
+      assert.strictEqual(
+        configAccountAfter.nextVaultIndex.toNumber(),
+        nextVaultIndex
+      );
+
+      // initVaultShares successfully to avoid conflicts in following tests
+      await vaultProgram.methods
+        .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+        .accounts({
+          metadata: metadataAddress,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
     });
 
-    // TO DO - need to either unskip later or modify the test
-    // it.skip("Roles Admin - Depositing into the vault should revert", async function () {
-    //   this.qaseId(23);
-    //   const rolesAdminTokenAccount = await token.createAccount(
-    //     connection,
-    //     rolesAdmin,
-    //     underlyingMint,
-    //     rolesAdmin.publicKey
-    //   );
-    //   const rolesAdminSharesAccount = await token.createAccount(
-    //     connection,
-    //     rolesAdmin,
-    //     sharesMintOne,
-    //     rolesAdmin.publicKey
-    //   );
-    //   await token.mintTo(
-    //     connection,
-    //     underlyingMintOwner,
-    //     underlyingMint,
-    //     rolesAdminTokenAccount,
-    //     underlyingMintOwner.publicKey,
-    //     1000
-    //   );
+    it("Accountant Admin - Calling shutdown vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
 
-    //   try {
-    //     await vaultProgram.methods
-    //       .deposit(new BN(100))
-    //       .accounts({
-    //         vault: vaultOne,
-    //         user: rolesAdmin.publicKey,
-    //         userTokenAccount: rolesAdminTokenAccount,
-    //         userSharesAccount: rolesAdminSharesAccount,
-    //       })
-    //       .signers([rolesAdmin])
-    //       .rpc();
-    //     assert.fail("Error was not thrown");
-    //   } catch (err) {
-    //     expect(err.message).contains(anchorError3012);
-    //   }
-    // });
-  });
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
 
-  describe("Vaults Admin Role Tests", () => {
-    it("Vaults Admin - Setting Vaults Admin role should revert", async function () {
-      this.qaseId(25);
-      const vaultsAdminUserInner = anchor.web3.Keypair.generate();
-      try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, vaultsAdminUserInner.publicKey)
-          .accounts({
-            signer: vaultsAdmin.publicKey,
-          })
-          .signers([vaultsAdmin])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(vaultsAdmin.publicKey);
-      }
-    });
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
 
-    it("Vaults Admin - Setting Reporting Manager role should revert", async function () {
-      this.qaseId(26);
-      const reportingManagerUserInner = anchor.web3.Keypair.generate();
-      try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, reportingManagerUserInner.publicKey)
-          .accounts({
-            signer: vaultsAdmin.publicKey,
-          })
-          .signers([vaultsAdmin])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(vaultsAdmin.publicKey);
-      }
-    });
-
-    it("Vaults Admin - Setting Whitelisted User role should revert", async function () {
-      this.qaseId(27);
-      const whiteListedUserInner = anchor.web3.Keypair.generate();
-      try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, whiteListedUserInner.publicKey)
-          .accounts({
-            signer: vaultsAdmin.publicKey,
-          })
-          .signers([vaultsAdmin])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(vaultsAdmin.publicKey);
-      }
-    });
-
-    it("Vaults Admin - Initializing vault is successful", async function () {
-      this.qaseId(29);
-      const [vaultInner, sharesMintInner, metadataAccountInner, vaultTokenAccountInner] =
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
         await initializeVault({
           vaultProgram,
           underlyingMint,
-          vaultIndex: 6,
           signer: vaultsAdmin,
-          config: vaultConfig,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
         });
-      const vaultAccountInner = await vaultProgram.account.vault.fetch(
-        vaultInner
-      );
-      expect(vaultAccountInner.underlyingTokenAcc.toBase58()).to.equal(
-        vaultTokenAccountInner.toBase58()
-      );
-      expect(vaultAccountInner.isShutdown).to.equal(false);
+
+      try {
+        await vaultProgram.methods
+          .shutdownVault()
+          .accounts({ vault, signer: accountantAdmin.publicKey })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.isShutdown, false);
+      assert.strictEqual(vaultAccount.depositLimit.toNumber(), 1000000000);
     });
 
-    it("Vaults Admin - Adding a strategy to the vault is successful", async function () {
-      this.qaseId(30);
+    it("Accountant Admin - Calling close vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      await vaultProgram.methods
+        .shutdownVault()
+        .accounts({ vault, signer: vaultsAdmin.publicKey })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .closeVault()
+          .accounts({
+            vault,
+            signer: accountantAdmin.publicKey,
+            recipient: accountantAdmin.publicKey,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetchNullable(vault);
+      assert.isNotNull(vaultAccount);
+    });
+
+    it("Accountant Admin - Calling update debt method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
       await vaultProgram.methods
         .addStrategy(new BN(1000000000))
         .accounts({
-          vault: vaultTwo,
-          strategy: strategyTwo,
+          vault: vault,
+          strategy: strategy,
           signer: vaultsAdmin.publicKey,
         })
         .signers([vaultsAdmin])
         .rpc();
-      const vaultAccount = await vaultProgram.account.vault.fetch(vaultTwo);
-      assert.ok(vaultAccount.strategies[0].key.equals(strategyTwo));
-    });
 
-    it("Vaults Admin - Update debt for the vault is successful", async function () {
-      this.qaseId(31);
-      const depositAmount = 100;
-      const allocationAmount = 90;
-      const whitelistedUserSharesTokenAccount = await token.createAccount(
-        connection,
-        whitelistedUser,
-        sharesMintTwo,
-        whitelistedUser.publicKey
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
       );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
 
       await vaultProgram.methods
         .deposit(new BN(depositAmount))
         .accounts({
-          vault: vaultTwo,
-          user: whitelistedUser.publicKey,
-          userTokenAccount: whitelistedUserTokenAccount,
-          userSharesAccount: whitelistedUserSharesTokenAccount,
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
         })
-        .signers([whitelistedUser])
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
         .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      try {
+        await vaultProgram.methods
+          .updateDebt(new BN(allocationAmount))
+          .accounts({
+            vault: vault,
+            strategy: strategy,
+            signer: accountantAdmin.publicKey,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+      assert.strictEqual(
+        vaultTokenAccountInfo.amount.toString(),
+        depositAmount.toString()
+      );
+
+      let strategyTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        strategyTokenAccount
+      );
+      assert.strictEqual(strategyTokenAccountInfo.amount.toString(), "0");
+
+      let strategyAccount = await strategyProgram.account.simpleStrategy.fetch(
+        strategy
+      );
+      assert.strictEqual(strategyAccount.totalAssets.toString(), "0");
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+        vaultProgram.programId
+      )[0];
+      const strategyDataAccount = await vaultProgram.account.strategyData.fetch(
+        strategyData
+      );
+
+      assert.strictEqual(strategyDataAccount.currentDebt.toString(), "0");
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+
+      assert.strictEqual(vaultAccount.totalDebt.toString(), "0");
+      assert.strictEqual(
+        vaultAccount.totalIdle.toString(),
+        depositAmount.toString()
+      );
+    });
+
+    it("Accountant Admin - Calling set deposit limit method should revert", async () => {
+      const newDepositLimit = new BN(2000000000);
+
+      try {
+        await vaultProgram.methods
+          .setDepositLimit(newDepositLimit)
+          .accounts({
+            vault: vaultOne,
+            signer: accountantAdmin.publicKey,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      assert.strictEqual(vaultAccount.depositLimit.toString(), "1000000000");
+    });
+
+    it("Accountant Admin - Calling set min user deposit method should revert", async () => {
+      const newMinUserDeposit = 100;
+
+      try {
+        await vaultProgram.methods
+          .setMinUserDeposit(new BN(newMinUserDeposit))
+          .accounts({
+            vault: vaultOne,
+            signer: accountantAdmin.publicKey,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      assert.strictEqual(vaultAccount.minUserDeposit.toString(), "0");
+    });
+
+    it("Accountant Admin - Calling set profit max unlock time method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newProfitMaxUnlockTime = 1;
+
+      try {
+        await vaultProgram.methods
+          .setProfitMaxUnlockTime(new BN(newProfitMaxUnlockTime))
+          .accounts({
+            vault: vault,
+            signer: accountantAdmin.publicKey,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.profitMaxUnlockTime.toString(), "0");
+    });
+
+    it("Accountant Admin - Calling set min total idle method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newMinTotalIdle = 1;
+
+      try {
+        await vaultProgram.methods
+          .setMinTotalIdle(new BN(1))
+          .accounts({
+            vault: vault,
+            signer: accountantAdmin.publicKey,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.minimumTotalIdle.toString(), "0");
+    });
+
+    it("Accountant Admin - Calling process report method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
 
       await vaultProgram.methods
         .updateDebt(new BN(allocationAmount))
         .accounts({
-          vault: vaultTwo,
-          strategy: strategyTwo,
-          strategyTokenAccount: strategyTokenAccountTwo,
+          vault: vault,
+          strategy: strategy,
           signer: vaultsAdmin.publicKey,
-          // @ts-ignore
+          underlyingMint: underlyingMint,
           tokenProgram: token.TOKEN_PROGRAM_ID,
-          strategyProgram: strategyProgram.programId,
         })
         .signers([vaultsAdmin])
         .rpc();
-      const vaultAccount = await vaultProgram.account.vault.fetch(vaultTwo);
-      expect(Number(vaultAccount.strategies[0].currentDebt)).to.eql(
-        allocationAmount
-      );
-      expect(Number(vaultAccount.totalDebt)).to.eql(allocationAmount);
-      expect(Number(vaultAccount.totalIdle)).to.eql(
-        depositAmount - allocationAmount
-      );
 
-      // Fetch the vault token account balance to verify the allocation
-      const vaultTokenAccountInfo = await token.getAccount(
-        connection,
-        vaultTokenAccountTwo
-      );
-      assert.strictEqual(
-        Number(vaultTokenAccountInfo.amount),
-        depositAmount - allocationAmount
-      );
-
-      // Fetch the strategy token account balance to verify the allocation
-      const strategyTokenAccountInfo = await token.getAccount(
-        connection,
-        strategyTokenAccountTwo
-      );
-      assert.strictEqual(
-        Number(strategyTokenAccountInfo.amount),
-        allocationAmount
-      );
-
-      // Fetch the strategy account to verify the state change
-      const strategyAccount =
-        await strategyProgram.account.simpleStrategy.fetch(strategyTwo);
-      assert.strictEqual(Number(strategyAccount.totalAssets), allocationAmount);
-    });
-
-    it("Vaults Admin - Set deposit limit for the vault is successful", async function () {
-      this.qaseId(32);
-      const depositLimit = new BN(2000);
-      await vaultProgram.methods
-        .setDepositLimit(depositLimit)
+      await strategyProgram.methods
+        .reportProfit(new BN(10))
         .accounts({
-          vault: vaultTwo,
-          signer: vaultsAdmin.publicKey,
+          strategy: strategyOne,
+          signer: strategiesManager.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
         })
-        .signers([vaultsAdmin])
+        .remainingAccounts([
+          {
+            pubkey: strategiesManagerOneTokenAccount,
+            isWritable: true,
+            isSigner: false,
+          },
+        ])
+        .signers([strategiesManager])
         .rpc();
-      const vaultAccount = await vaultProgram.account.vault.fetch(vaultTwo);
-      expect(Number(vaultAccount.depositLimit)).equals(Number(depositLimit));
-    });
-
-    it("Vaults Admin - Process report for the vault should revert", async function () {
-      this.qaseId(33);
-      const feeRecipient = anchor.web3.Keypair.generate();
-      await airdrop({
-        connection,
-        publicKey: feeRecipient.publicKey,
-        amount: 10e9,
-      });
-      const feeRecipientSharesAccount = await token.createAccount(
-        connection,
-        feeRecipient,
-        sharesMintTwo,
-        feeRecipient.publicKey
-      );
 
       try {
         await vaultProgram.methods
           .processReport()
           .accounts({
-            vault: vaultTwo,
-            strategy: strategyTwo,
+            vault: vaultOne,
+            strategy: strategyOne,
+            signer: accountantAdmin.publicKey,
+            accountant: accountantOne,
+          })
+          .signers([accountantAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("Accountant Admin - Calling deposit method for kyc verified only vault should revert", async () => {
+      const depositAmount = 50;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const sharesAccount = await token.createAccount(
+        provider.connection,
+        accountantAdmin,
+        sharesMint,
+        accountantAdmin.publicKey
+      );
+
+      const tokenAccount = await token.createAccount(
+        connection,
+        accountantAdmin,
+        underlyingMint,
+        accountantAdmin.publicKey
+      );
+
+      const mintAmount = 1000;
+
+      await token.mintTo(
+        connection,
+        underlyingMintOwner,
+        underlyingMint,
+        tokenAccount,
+        underlyingMintOwner.publicKey,
+        mintAmount
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          accountantAdmin.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .deposit(new BN(depositAmount))
+          .accounts({
+            vault: vault,
+            accountant: accountant,
+            user: accountantAdmin.publicKey,
+            userTokenAccount: tokenAccount,
+            userSharesAccount: sharesAccount,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([accountantAdmin])
+          .remainingAccounts([
+            {
+              pubkey: kycVerified,
+              isWritable: false,
+              isSigner: false,
+            },
+          ])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(errorStrings.kycRequired);
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+
+      assert.strictEqual(vaultTokenAccountInfo.amount.toString(), "0");
+
+      let userTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        nonVerifiedUserTokenAccount
+      );
+      assert.strictEqual(
+        userTokenAccountInfo.amount.toString(),
+        nonVerifiedUserCurrentAmount.toString()
+      );
+
+      let userSharesAccountInfo = await token.getAccount(
+        provider.connection,
+        sharesAccount
+      );
+      assert.strictEqual(userSharesAccountInfo.amount.toString(), "0");
+    });
+  });
+
+  describe("Strategies Manager Role Tests", () => {
+    it("Strategies Manager - Calling init strategy method is successful", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      const strategyAccount =
+        await strategyProgram.account.simpleStrategy.fetch(strategy);
+      expect(strategyAccount.manager.toString()).to.equal(
+        strategiesManager.publicKey.toBase58()
+      );
+    });
+
+    it("Strategies Manager - Init accountant should revert", async function () {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const nextAccountantIndexBefore =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      try {
+        await accountantProgram.methods
+          .initAccountant(accountantType)
+          .accounts({
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const nextAccountantIndexAfter =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      assert.strictEqual(nextAccountantIndexAfter, nextAccountantIndexBefore);
+    });
+
+    it("Strategies Manager - Calling set fee method should revert", async function () {
+      try {
+        await accountantProgram.methods
+          .setPerformanceFee(new BN(100))
+          .accounts({
+            accountant: accountantOne,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let genericAccountant =
+        await accountantProgram.account.genericAccountant.fetch(accountantOne);
+      assert.strictEqual(genericAccountant.performanceFee.toNumber(), 500);
+    });
+
+    it("Strategies Manager - Calling distribute method should revert", async function () {
+      try {
+        await accountantProgram.methods
+          .distribute()
+          .accounts({
+            recipient: feeRecipientSharesAccountOne,
+            accountant: accountantOne,
+            underlyingMint: sharesMintOne,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("Strategies Manager - Calling add strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      try {
+        await vaultProgram.methods
+          .addStrategy(new BN(1000000000))
+          .accounts({
+            vault: vaultOne,
+            strategy,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(strategyData);
+      assert.isNull(strategyDataAccount);
+    });
+
+    it("Strategies Manager - Calling remove strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vaultOne,
+          strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const strategyDataBefore = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      try {
+        await vaultProgram.methods
+          .removeStrategy(strategy, false)
+          .accounts({
+            vault: vaultOne,
+            strategyData: strategyDataBefore,
+            recipient: vaultsAdmin.publicKey,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const strategyDataAfter = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(
+          strategyDataAfter
+        );
+      assert.isNotNull(strategyDataAccount);
+    });
+
+    it("Strategies Manager - Calling init vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      try {
+        await vaultProgram.methods
+          .initVault(vaultConfig)
+          .accounts({
+            underlyingMint,
+            signer: strategiesManager.publicKey,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("Strategies Manager - Calling init vault shares method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      await vaultProgram.methods
+        .initVault(vaultConfig)
+        .accounts({
+          underlyingMint,
+          signer: vaultsAdmin.publicKey,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const config = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("config")],
+        vaultProgram.programId
+      )[0];
+
+      let configAccount = await vaultProgram.account.config.fetch(config);
+
+      const nextVaultIndex = configAccount.nextVaultIndex.toNumber();
+
+      const vault = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("vault"),
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(nextVaultIndex)]).buffer)
+          ),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const sharesMint = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("shares"), vault.toBuffer()],
+        vaultProgram.programId
+      )[0];
+
+      const [metadataAddress] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(METADATA_SEED),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          sharesMint.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
+      );
+
+      const sharesConfig = {
+        name: "Localnet Tests Token",
+        symbol: "LTT1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      try {
+        await vaultProgram.methods
+          .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+          .accounts({
+            metadata: metadataAddress,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let configAccountAfter = await vaultProgram.account.config.fetch(config);
+
+      assert.strictEqual(
+        configAccountAfter.nextVaultIndex.toNumber(),
+        nextVaultIndex
+      );
+
+      // initVaultShares successfully to avoid conflicts in following tests
+      await vaultProgram.methods
+        .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+        .accounts({
+          metadata: metadataAddress,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+    });
+
+    it("Strategies Manager - Calling shutdown vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      try {
+        await vaultProgram.methods
+          .shutdownVault()
+          .accounts({ vault, signer: strategiesManager.publicKey })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.isShutdown, false);
+      assert.strictEqual(vaultAccount.depositLimit.toNumber(), 1000000000);
+    });
+
+    it("Strategies Manager - Calling close vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      await vaultProgram.methods
+        .shutdownVault()
+        .accounts({ vault, signer: vaultsAdmin.publicKey })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .closeVault()
+          .accounts({
+            vault,
+            signer: strategiesManager.publicKey,
+            recipient: accountantAdmin.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetchNullable(vault);
+      assert.isNotNull(vaultAccount);
+    });
+
+    it("Strategies Manager - Calling update debt method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      try {
+        await vaultProgram.methods
+          .updateDebt(new BN(allocationAmount))
+          .accounts({
+            vault: vault,
+            strategy: strategy,
+            signer: strategiesManager.publicKey,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+      assert.strictEqual(
+        vaultTokenAccountInfo.amount.toString(),
+        depositAmount.toString()
+      );
+
+      let strategyTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        strategyTokenAccount
+      );
+      assert.strictEqual(strategyTokenAccountInfo.amount.toString(), "0");
+
+      let strategyAccount = await strategyProgram.account.simpleStrategy.fetch(
+        strategy
+      );
+      assert.strictEqual(strategyAccount.totalAssets.toString(), "0");
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+        vaultProgram.programId
+      )[0];
+      const strategyDataAccount = await vaultProgram.account.strategyData.fetch(
+        strategyData
+      );
+
+      assert.strictEqual(strategyDataAccount.currentDebt.toString(), "0");
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+
+      assert.strictEqual(vaultAccount.totalDebt.toString(), "0");
+      assert.strictEqual(
+        vaultAccount.totalIdle.toString(),
+        depositAmount.toString()
+      );
+    });
+
+    it("Strategies Manager - Calling set deposit limit method should revert", async () => {
+      const newDepositLimit = new BN(2000000000);
+
+      try {
+        await vaultProgram.methods
+          .setDepositLimit(newDepositLimit)
+          .accounts({
+            vault: vaultOne,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      assert.strictEqual(vaultAccount.depositLimit.toString(), "1000000000");
+    });
+
+    it("Strategies Manager - Calling set min user deposit method should revert", async () => {
+      const newMinUserDeposit = 100;
+
+      try {
+        await vaultProgram.methods
+          .setMinUserDeposit(new BN(newMinUserDeposit))
+          .accounts({
+            vault: vaultOne,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      assert.strictEqual(vaultAccount.minUserDeposit.toString(), "0");
+    });
+
+    it("Strategies Manager - Calling set profit max unlock time method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newProfitMaxUnlockTime = 1;
+
+      try {
+        await vaultProgram.methods
+          .setProfitMaxUnlockTime(new BN(newProfitMaxUnlockTime))
+          .accounts({
+            vault: vault,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.profitMaxUnlockTime.toString(), "0");
+    });
+
+    it("Strategies Manager - Calling set min total idle method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newMinTotalIdle = 1;
+
+      try {
+        await vaultProgram.methods
+          .setMinTotalIdle(new BN(1))
+          .accounts({
+            vault: vault,
+            signer: strategiesManager.publicKey,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.minimumTotalIdle.toString(), "0");
+    });
+
+    it("Strategies Manager - Calling process report method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      await vaultProgram.methods
+        .updateDebt(new BN(allocationAmount))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      await strategyProgram.methods
+        .reportProfit(new BN(10))
+        .accounts({
+          strategy: strategyOne,
+          signer: strategiesManager.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts([
+          {
+            pubkey: strategiesManagerOneTokenAccount,
+            isWritable: true,
+            isSigner: false,
+          },
+        ])
+        .signers([strategiesManager])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .processReport()
+          .accounts({
+            vault: vaultOne,
+            strategy: strategyOne,
+            signer: strategiesManager.publicKey,
+            accountant: accountantOne,
+          })
+          .signers([strategiesManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("Strategies Manager - Calling deposit method for kyc verified only vault should revert", async () => {
+      const depositAmount = 50;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const sharesAccount = await token.createAccount(
+        provider.connection,
+        strategiesManager,
+        sharesMint,
+        strategiesManager.publicKey
+      );
+
+      const mintAmount = 1000;
+
+      await token.mintTo(
+        connection,
+        underlyingMintOwner,
+        underlyingMint,
+        strategiesManagerOneTokenAccount,
+        underlyingMintOwner.publicKey,
+        mintAmount
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          strategiesManager.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .deposit(new BN(depositAmount))
+          .accounts({
+            vault: vault,
+            accountant: accountant,
+            user: strategiesManager.publicKey,
+            userTokenAccount: strategiesManagerOneTokenAccount,
+            userSharesAccount: sharesAccount,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([strategiesManager])
+          .remainingAccounts([
+            {
+              pubkey: kycVerified,
+              isWritable: false,
+              isSigner: false,
+            },
+          ])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(errorStrings.kycRequired);
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+
+      assert.strictEqual(vaultTokenAccountInfo.amount.toString(), "0");
+
+      let userTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        nonVerifiedUserTokenAccount
+      );
+      assert.strictEqual(
+        userTokenAccountInfo.amount.toString(),
+        nonVerifiedUserCurrentAmount.toString()
+      );
+
+      let userSharesAccountInfo = await token.getAccount(
+        provider.connection,
+        sharesAccount
+      );
+      assert.strictEqual(userSharesAccountInfo.amount.toString(), "0");
+    });
+  });
+
+  describe("Vaults Admin Role Tests", () => {
+    it("Vaults Admin - Calling add strategy method is successful", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vaultOne,
+          strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(strategyData);
+      assert.isNotNull(strategyDataAccount);
+    });
+
+    it("Vaults Admin - Calling remove strategy method is successful", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vaultOne,
+          strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const strategyDataBefore = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      await vaultProgram.methods
+        .removeStrategy(strategy, false)
+        .accounts({
+          vault: vaultOne,
+          strategyData: strategyDataBefore,
+          recipient: vaultsAdmin.publicKey,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const strategyDataAfter = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(
+          strategyDataAfter
+        );
+      assert.isNull(strategyDataAccount);
+    });
+
+    it("Vaults Admin - Calling init vault method is successful", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const config = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("config")],
+        vaultProgram.programId
+      )[0];
+
+      let configAccount = await vaultProgram.account.config.fetch(config);
+
+      const nextVaultIndex = configAccount.nextVaultIndex.toNumber();
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      await vaultProgram.methods
+        .initVault(vaultConfig)
+        .accounts({
+          underlyingMint,
+          signer: vaultsAdmin.publicKey,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const vault = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("vault"),
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(nextVaultIndex)]).buffer)
+          ),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.isShutdown, false);
+      assert.strictEqual(vaultAccount.depositLimit.toNumber(), 1000000000);
+      assert.strictEqual(vaultAccount.minUserDeposit.toNumber(), 0);
+      assert.strictEqual(
+        vaultAccount.accountant.toString(),
+        accountant.toBase58()
+      );
+      assert.strictEqual(vaultAccount.profitMaxUnlockTime.toNumber(), 0);
+      assert.strictEqual(vaultAccount.kycVerifiedOnly, true);
+      assert.strictEqual(vaultAccount.directDepositEnabled, false);
+    });
+
+    it("Vaults Admin - Calling init vault shares method is successful", async () => {
+      const config = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("config")],
+        vaultProgram.programId
+      )[0];
+
+      let configAccount = await vaultProgram.account.config.fetch(config);
+
+      const nextVaultIndex = configAccount.nextVaultIndex.toNumber();
+
+      const vault = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("vault"),
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(nextVaultIndex)]).buffer)
+          ),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const sharesMint = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("shares"), vault.toBuffer()],
+        vaultProgram.programId
+      )[0];
+
+      const [metadataAddress] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(METADATA_SEED),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          sharesMint.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
+      );
+
+      const sharesConfig = {
+        name: "Localnet Tests Token",
+        symbol: "LTT1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      await vaultProgram.methods
+        .initVaultShares(new BN(1), sharesConfig)
+        .accounts({
+          metadata: metadataAddress,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      let configAccountAfter = await vaultProgram.account.config.fetch(config);
+
+      assert.strictEqual(
+        configAccountAfter.nextVaultIndex.toNumber(),
+        nextVaultIndex + 1
+      );
+    });
+
+    it("Vaults Admin - Calling shutdown vault method is successful", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      await vaultProgram.methods
+        .shutdownVault()
+        .accounts({ vault, signer: vaultsAdmin.publicKey })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.isShutdown, true);
+      assert.strictEqual(vaultAccount.depositLimit.toNumber(), 0);
+    });
+
+    it("Vaults Admin - Calling close vault method is successful", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      await vaultProgram.methods
+        .shutdownVault()
+        .accounts({ vault, signer: vaultsAdmin.publicKey })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .closeVault()
+        .accounts({
+          vault,
+          signer: vaultsAdmin.publicKey,
+          recipient: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      let vaultAccount = await vaultProgram.account.vault.fetchNullable(vault);
+      assert.isNull(vaultAccount);
+    });
+
+    it("Vaults Admin - Calling update debt method is successful", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vaultOne,
+          accountant: accountantOne,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccountVaultOne,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      await vaultProgram.methods
+        .updateDebt(new BN(allocationAmount))
+        .accounts({
+          vault: vaultOne,
+          strategy: strategyOne,
+          signer: vaultsAdmin.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccountOne
+      );
+
+      assert.strictEqual(
+        vaultTokenAccountInfo.amount.toString(),
+        (depositAmount - allocationAmount).toString()
+      );
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+
+      assert.strictEqual(
+        vaultAccount.totalDebt.toString(),
+        allocationAmount.toString()
+      );
+      assert.strictEqual(
+        vaultAccount.totalIdle.toString(),
+        (depositAmount - allocationAmount).toString()
+      );
+    });
+
+    it("Vaults Admin - Calling set deposit limit method is successful", async () => {
+      const newDepositLimit = new BN(2000000000);
+
+      await vaultProgram.methods
+        .setDepositLimit(newDepositLimit)
+        .accounts({
+          vault: vaultOne,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      assert.strictEqual(
+        vaultAccount.depositLimit.toString(),
+        newDepositLimit.toString()
+      );
+    });
+
+    it("Vaults Admin - Calling set min user deposit method is successful", async () => {
+      const newMinUserDeposit = 100;
+      await vaultProgram.methods
+        .setMinUserDeposit(new BN(newMinUserDeposit))
+        .accounts({
+          vault: vaultOne,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      assert.strictEqual(
+        vaultAccount.minUserDeposit.toString(),
+        newMinUserDeposit.toString()
+      );
+    });
+
+    it("Vaults Admin - Calling set profit max unlock time method is successful", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newProfitMaxUnlockTime = 1;
+      await vaultProgram.methods
+        .setProfitMaxUnlockTime(new BN(newProfitMaxUnlockTime))
+        .accounts({
+          vault: vault,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(
+        vaultAccount.profitMaxUnlockTime.toString(),
+        newProfitMaxUnlockTime.toString()
+      );
+    });
+
+    it("Vaults Admin - Calling set min total idle method is successful", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newMinTotalIdle = 1;
+      await vaultProgram.methods
+        .setMinTotalIdle(new BN(1))
+        .accounts({
+          vault: vault,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(
+        vaultAccount.minimumTotalIdle.toString(),
+        newMinTotalIdle.toString()
+      );
+    });
+
+    it("Vaults Admin - Init accountant should revert", async function () {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const nextAccountantIndexBefore =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      try {
+        await accountantProgram.methods
+          .initAccountant(accountantType)
+          .accounts({
             signer: vaultsAdmin.publicKey,
-            feeSharesRecipient: feeRecipientSharesAccount,
           })
           .signers([vaultsAdmin])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError2003);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
-    });
 
-    // TO DO - need to either unskip later or modify the test
-    // it.skip("Vaults Admin - Depositing into the vault should revert", async function () {
-    //   this.qaseId(34);
-    //   const vaultsAdminTokenAccount = await token.createAccount(
-    //     connection,
-    //     vaultsAdmin,
-    //     underlyingMint,
-    //     vaultsAdmin.publicKey
-    //   );
-    //   const vaultsAdminSharesAccount = await token.createAccount(
-    //     connection,
-    //     vaultsAdmin,
-    //     sharesMintTwo,
-    //     vaultsAdmin.publicKey
-    //   );
-    //   await token.mintTo(
-    //     connection,
-    //     underlyingMintOwner,
-    //     underlyingMint,
-    //     vaultsAdminTokenAccount,
-    //     underlyingMintOwner.publicKey,
-    //     1000
-    //   );
-
-    //   try {
-    //     await vaultProgram.methods
-    //       .deposit(new BN(100))
-    //       .accounts({
-    //         vault: vaultTwo,
-    //         user: vaultsAdmin.publicKey,
-    //         userTokenAccount: vaultsAdminTokenAccount,
-    //         userSharesAccount: vaultsAdminSharesAccount,
-    //       })
-    //       .signers([vaultsAdmin])
-    //       .rpc();
-    //     assert.fail("Error was not thrown");
-    //   } catch (err) {
-    //     expect(err.message).contains(anchorError2003);
-    //   }
-    // });
-
-    it("Vaults Admin - Removing a strategy from the vault is successful", async function () {
-      this.qaseId(35);
-      await vaultProgram.methods
-        .removeStrategy(strategyTwo, true)
-        .accounts({
-          vault: vaultTwo,
-          signer: vaultsAdmin.publicKey,
-        })
-        .signers([vaultsAdmin])
-        .rpc();
-      const vaultAccount = await vaultProgram.account.vault.fetch(vaultTwo);
-      assert.strictEqual(
-        vaultAccount.strategies[0].key.toString(),
-        "11111111111111111111111111111111"
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
       );
+      const nextAccountantIndexAfter =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      assert.strictEqual(nextAccountantIndexAfter, nextAccountantIndexBefore);
     });
 
-    it("Vaults Admin - Shutting down the vault is successful", async function () {
-      this.qaseId(36);
-      await vaultProgram.methods
-        .shutdownVault()
-        .accounts({
-          vault: vaultTwo,
-          signer: vaultsAdmin.publicKey,
-        })
-        .signers([vaultsAdmin])
-        .rpc();
-      const vaultAccountTwo = await vaultProgram.account.vault.fetch(vaultTwo);
-      expect(vaultAccountTwo.isShutdown).to.equal(true);
-    });
-  });
-
-  describe("Reporting Manager Role Tests", () => {
-    it("Reporting Manager - Setting Vaults Admin role should revert", async function () {
-      this.qaseId(37);
-      const vaultsAdminUserInner = anchor.web3.Keypair.generate();
+    it("Vaults Admin - Calling set fee method should revert", async function () {
       try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, vaultsAdminUserInner.publicKey)
+        await accountantProgram.methods
+          .setPerformanceFee(new BN(100))
           .accounts({
-            signer: reportingManager.publicKey,
+            accountant: accountantOne,
+            signer: vaultsAdmin.publicKey,
           })
-          .signers([reportingManager])
+          .signers([vaultsAdmin])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(reportingManager.publicKey);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
+
+      let genericAccountant =
+        await accountantProgram.account.genericAccountant.fetch(accountantOne);
+      assert.strictEqual(genericAccountant.performanceFee.toNumber(), 500);
     });
 
-    it("Reporting Manager - Setting Reporting Manager role should revert", async function () {
-      this.qaseId(38);
-      const reportingManagerUserInner = anchor.web3.Keypair.generate();
+    it("Vaults Admin - Calling distribute method should revert", async function () {
       try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, reportingManagerUserInner.publicKey)
+        await accountantProgram.methods
+          .distribute()
           .accounts({
-            signer: reportingManager.publicKey,
+            recipient: feeRecipientSharesAccountOne,
+            accountant: accountantOne,
+            underlyingMint: sharesMintOne,
+            signer: vaultsAdmin.publicKey,
           })
-          .signers([reportingManager])
+          .signers([vaultsAdmin])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(reportingManager.publicKey);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
     });
 
-    it("Reporting Manager - Setting Whitelisted role should revert", async function () {
-      this.qaseId(39);
-      const whiteListedUserInner = anchor.web3.Keypair.generate();
-      try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, whiteListedUserInner.publicKey)
-          .accounts({
-            signer: reportingManager.publicKey,
-          })
-          .signers([reportingManager])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(reportingManager.publicKey);
-      }
-    });
+    it("Vaults Admin - Calling init strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
 
-    it("Reporting Manager - Initializing vault should revert", async function () {
-      this.qaseId(40);
       try {
-        await initializeVault({
-          vaultProgram,
+        await initializeSimpleStrategy({
+          strategyProgram,
+          vault: vaultOne,
           underlyingMint,
-          vaultIndex: 7,
-          signer: reportingManager,
-          config: vaultConfig,
+          signer: vaultsAdmin,
+          config: strategyConfig,
         });
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError2003);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
     });
 
-    it("Reporting Manager - Adding a strategy to the vault should revert", async function () {
-      this.qaseId(41);
-      try {
-        await vaultProgram.methods
-          .addStrategy(new BN(1000000000))
-          .accounts({
-            vault: vaultThree,
-            strategy: strategyThree,
-            signer: reportingManager.publicKey,
-          })
-          .signers([reportingManager])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError2003);
-      }
-    });
+    it("Vaults Admin - Calling process report method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
 
-    it("Reporting Manager - Removing a strategy from the vault should revert", async function () {
-      this.qaseId(42);
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
       await vaultProgram.methods
         .addStrategy(new BN(1000000000))
         .accounts({
-          vault: vaultThree,
-          strategy: strategyThree,
+          vault: vault,
+          strategy: strategy,
           signer: vaultsAdmin.publicKey,
         })
         .signers([vaultsAdmin])
         .rpc();
-      try {
-        await vaultProgram.methods
-          .removeStrategy(strategyThree, false)
-          .accounts({
-            vault: vaultThree,
-            signer: reportingManager.publicKey,
-          })
-          .signers([reportingManager])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError2003);
-      }
-    });
 
-    it("Reporting Manager - Shutting down the vault should revert", async function () {
-      this.qaseId(43);
-      try {
-        await vaultProgram.methods
-          .shutdownVault()
-          .accounts({
-            vault: vaultThree,
-            signer: reportingManager.publicKey,
-          })
-          .signers([reportingManager])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError2003);
-      }
-    });
-
-    it("Reporting Manager - Update debt for the vault should revert", async function () {
-      this.qaseId(44);
-      try {
-        await vaultProgram.methods
-          .updateDebt(new BN(100))
-          .accounts({
-            vault: vaultThree,
-            strategy: strategyThree,
-            strategyTokenAccount: strategyTokenAccountThree,
-            signer: reportingManager.publicKey,
-            // @ts-ignore
-            tokenProgram: token.TOKEN_PROGRAM_ID,
-            strategyProgram: strategyProgram.programId,
-          })
-          .signers([reportingManager])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError2003);
-      }
-    });
-
-    it("Reporting Manager - Set deposit limit for the vault should revert", async function () {
-      this.qaseId(45);
-      try {
-        await vaultProgram.methods
-          .setDepositLimit(new BN(2000))
-          .accounts({
-            vault: vaultThree,
-            signer: reportingManager.publicKey,
-          })
-          .signers([reportingManager])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError2003);
-      }
-    });
-
-    // TO DO, need to validate assertions
-    it("Reporting Manager - Process report is successful", async function () {
-      this.qaseId(46);
-      const whitelistedUserSharesTokenAccount = await token.createAccount(
-        connection,
-        whitelistedUser,
-        sharesMintThree,
-        whitelistedUser.publicKey
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
       );
 
-      // Deposit
-      await vaultProgram.methods
-        .deposit(new BN(100))
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
         .accounts({
-          vault: vaultThree,
-          user: whitelistedUser.publicKey,
-          userTokenAccount: whitelistedUserTokenAccount,
-          userSharesAccount: whitelistedUserSharesTokenAccount,
+          signer: accountantAdmin.publicKey,
         })
-        .signers([whitelistedUser])
+        .signers([accountantAdmin])
         .rpc();
 
-      // Allocate
-      await vaultProgram.methods
-        .updateDebt(new BN(100))
+      await accountantProgram.methods.initTokenAccount()
         .accounts({
-          vault: vaultThree,
-          strategy: strategyThree,
-          strategyTokenAccount: strategyTokenAccountThree,
-          signer: vaultsAdmin.publicKey,
-          // @ts-ignore
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
           tokenProgram: token.TOKEN_PROGRAM_ID,
-          strategyProgram: strategyProgram.programId,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      await vaultProgram.methods
+        .updateDebt(new BN(allocationAmount))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([vaultsAdmin])
         .rpc();
-
-      // Simulate profit
-      await token.mintTo(
-        connection,
-        underlyingMintOwner,
-        underlyingMint,
-        strategyTokenAccountThree,
-        underlyingMintOwner.publicKey,
-        50
-      );
-
-      const feeRecipient = anchor.web3.Keypair.generate();
-      await airdrop({
-        connection,
-        publicKey: feeRecipient.publicKey,
-        amount: 10e9,
-      });
-      const feeRecipientSharesAccount = await token.createAccount(
-        connection,
-        feeRecipient,
-        sharesMintThree,
-        feeRecipient.publicKey
-      );
 
       await strategyProgram.methods
-        .report()
+        .reportProfit(new BN(10))
         .accounts({
-          strategy: strategyThree,
-          signer: vaultsAdmin.publicKey,
-          // @ts-ignore
+          strategy: strategyOne,
+          signer: strategiesManager.publicKey,
+          underlyingMint: underlyingMint,
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .remainingAccounts([
           {
-            pubkey: strategyTokenAccountThree,
+            pubkey: strategiesManagerOneTokenAccount,
             isWritable: true,
             isSigner: false,
           },
         ])
-        .signers([vaultsAdmin])
+        .signers([strategiesManager])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .processReport()
+          .accounts({
+            vault: vaultOne,
+            strategy: strategyOne,
+            signer: vaultsAdmin.publicKey,
+            accountant: accountantOne,
+          })
+          .signers([vaultsAdmin])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("Vaults Admin - Calling deposit method for kyc verified only vault should revert", async () => {
+      const depositAmount = 50;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const sharesAccount = await token.createAccount(
+        provider.connection,
+        vaultsAdmin,
+        sharesMint,
+        vaultsAdmin.publicKey
+      );
+
+      const tokenAccount = await token.createAccount(
+        connection,
+        vaultsAdmin,
+        underlyingMint,
+        vaultsAdmin.publicKey
+      );
+
+      const mintAmount = 1000;
+
+      await token.mintTo(
+        connection,
+        underlyingMintOwner,
+        underlyingMint,
+        tokenAccount,
+        underlyingMintOwner.publicKey,
+        mintAmount
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          vaultsAdmin.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .deposit(new BN(depositAmount))
+          .accounts({
+            vault: vault,
+            accountant: accountant,
+            user: vaultsAdmin.publicKey,
+            userTokenAccount: tokenAccount,
+            userSharesAccount: sharesAccount,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([vaultsAdmin])
+          .remainingAccounts([
+            {
+              pubkey: kycVerified,
+              isWritable: false,
+              isSigner: false,
+            },
+          ])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(errorStrings.kycRequired);
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+
+      assert.strictEqual(vaultTokenAccountInfo.amount.toString(), "0");
+
+      let userTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        nonVerifiedUserTokenAccount
+      );
+      assert.strictEqual(
+        userTokenAccountInfo.amount.toString(),
+        nonVerifiedUserCurrentAmount.toString()
+      );
+
+      let userSharesAccountInfo = await token.getAccount(
+        provider.connection,
+        sharesAccount
+      );
+      assert.strictEqual(userSharesAccountInfo.amount.toString(), "0");
+    });
+  });
+
+  describe("Reporting Manager Role Tests", () => {
+    it("Reporting Manager - Calling process report method is successful", async () => {
+      await strategyProgram.methods
+        .reportProfit(new BN(10))
+        .accounts({
+          strategy: strategyOne,
+          signer: strategiesManager.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts([
+          {
+            pubkey: strategiesManagerOneTokenAccount,
+            isWritable: true,
+            isSigner: false,
+          },
+        ])
+        .signers([strategiesManager])
         .rpc();
 
       await vaultProgram.methods
         .processReport()
         .accounts({
-          vault: vaultThree,
-          strategy: strategyThree,
+          vault: vaultOne,
+          strategy: strategyOne,
           signer: reportingManager.publicKey,
-          feeSharesRecipient: feeRecipientSharesAccount,
+          accountant: accountantOne,
         })
         .signers([reportingManager])
         .rpc();
 
-      // Assertions
-      const vaultAccount = await vaultProgram.account.vault.fetch(vaultThree);
-      assert.strictEqual(vaultAccount.totalShares.toString(), "103");
-
-      // check fee balance
-      const strategyAccount =
-        await strategyProgram.account.simpleStrategy.fetch(strategyThree);
-      assert.strictEqual(strategyAccount.feeData.feeBalance.toString(), "0");
-
-      // check the strategy token account balance
-      const strategyTokenAccountInfo = await token.getAccount(
-        connection,
-        strategyTokenAccountThree
+      let strategyAccount = await strategyProgram.account.simpleStrategy.fetch(
+        strategyOne
       );
-      assert.strictEqual(strategyTokenAccountInfo.amount.toString(), "150");
+      expect(strategyAccount.feeData.feeBalance.toNumber()).greaterThan(0);
 
-      // check the vault token account balance
-      const vaultTokenAccountInfo = await token.getAccount(
-        connection,
-        vaultTokenAccountThree
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccountOne
       );
       assert.strictEqual(vaultTokenAccountInfo.amount.toString(), "0");
     });
 
-    // TO DO - need to either unskip later or modify the test
-    // it.skip("Reporting Manager - Depositing into the vault should revert", async function () {
-    //   this.qaseId(47);
-    //   const reportingManagerTokenAccount = await token.createAccount(
-    //     connection,
-    //     reportingManager,
-    //     underlyingMint,
-    //     reportingManager.publicKey
-    //   );
-    //   const reportingManagerSharesAccount = await token.createAccount(
-    //     connection,
-    //     reportingManager,
-    //     sharesMintThree,
-    //     reportingManager.publicKey
-    //   );
-    //   await token.mintTo(
-    //     connection,
-    //     underlyingMintOwner,
-    //     underlyingMint,
-    //     reportingManagerTokenAccount,
-    //     underlyingMintOwner.publicKey,
-    //     1000
-    //   );
+    it("Reporting Manager - Calling init strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
 
-    //   try {
-    //     await vaultProgram.methods
-    //       .deposit(new BN(100))
-    //       .accounts({
-    //         vault: vaultThree,
-    //         user: reportingManager.publicKey,
-    //         userTokenAccount: reportingManagerTokenAccount,
-    //         userSharesAccount: reportingManagerSharesAccount,
-    //       })
-    //       .signers([reportingManager])
-    //       .rpc();
-    //     assert.fail("Error was not thrown");
-    //   } catch (err) {
-    //     expect(err.message).contains(anchorError2003);
-    //   }
-    // });
-  });
-
-  describe("Whitelisted User Role Tests", () => {
-    it("Whitelisted User - Setting Vaults Admin role should revert", async function () {
-      this.qaseId(48);
-      const vaultsAdminUserInner = anchor.web3.Keypair.generate();
       try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, vaultsAdminUserInner.publicKey)
-          .accounts({
-            signer: whitelistedUser.publicKey,
-          })
-          .signers([whitelistedUser])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(whitelistedUser.publicKey);
-      }
-    });
-
-    it("Whitelisted User - Setting Reporting Manager role should revert", async function () {
-      this.qaseId(49);
-      const reportingManagerUserInner = anchor.web3.Keypair.generate();
-      try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, reportingManagerUserInner.publicKey)
-          .accounts({
-            signer: whitelistedUser.publicKey,
-          })
-          .signers([whitelistedUser])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(whitelistedUser.publicKey);
-      }
-    });
-
-    it("Whitelisted User - Setting Whitelisted role should revert", async function () {
-      this.qaseId(50);
-      const whiteListedUserInner = anchor.web3.Keypair.generate();
-      try {
-        await vaultProgram.methods
-          .setRole(vaultsAdminObj, whiteListedUserInner.publicKey)
-          .accounts({
-            signer: whitelistedUser.publicKey,
-          })
-          .signers([whitelistedUser])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contain(anchorError2012);
-        expect(err.message).contains(rolesAdmin.publicKey);
-        expect(err.message).contains(whitelistedUser.publicKey);
-      }
-    });
-
-    it("Whitelisted User - Initializing vault should revert", async function () {
-      this.qaseId(51);
-      try {
-        await initializeVault({
-          vaultProgram,
+        await initializeSimpleStrategy({
+          strategyProgram,
+          vault: vaultOne,
           underlyingMint,
-          vaultIndex: 8,
-          signer: whitelistedUser,
-          config: vaultConfig,
+          signer: reportingManager,
+          config: strategyConfig,
         });
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError2003);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
     });
 
-    it("Whitelisted User - Adding a strategy to the vault should revert", async function () {
-      this.qaseId(52);
+    it("Reporting Manager - Init accountant should revert", async function () {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const nextAccountantIndexBefore =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      try {
+        await accountantProgram.methods
+          .initAccountant(accountantType)
+          .accounts({
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const nextAccountantIndexAfter =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      assert.strictEqual(nextAccountantIndexAfter, nextAccountantIndexBefore);
+    });
+
+    it("Reporting Manager - Calling set fee method should revert", async function () {
+      try {
+        await accountantProgram.methods
+          .setPerformanceFee(new BN(100))
+          .accounts({
+            accountant: accountantOne,
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let genericAccountant =
+        await accountantProgram.account.genericAccountant.fetch(accountantOne);
+      assert.strictEqual(genericAccountant.performanceFee.toNumber(), 500);
+    });
+
+    it("Reporting Manager - Calling distribute method should revert", async function () {
+      try {
+        await accountantProgram.methods
+          .distribute()
+          .accounts({
+            recipient: feeRecipientSharesAccountOne,
+            accountant: accountantOne,
+            underlyingMint: sharesMintOne,
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("Reporting Manager - Calling add strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
       try {
         await vaultProgram.methods
           .addStrategy(new BN(1000000000))
           .accounts({
-            vault: vaultFour,
-            strategy: strategyFour,
-            signer: whitelistedUser.publicKey,
+            vault: vaultOne,
+            strategy,
+            signer: reportingManager.publicKey,
           })
-          .signers([whitelistedUser])
+          .signers([reportingManager])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError2003);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(strategyData);
+      assert.isNull(strategyDataAccount);
     });
 
-    it("Whitelisted User - Removing a strategy from the vault should revert", async function () {
-      this.qaseId(53);
+    it("Reporting Manager - Calling remove strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
       await vaultProgram.methods
         .addStrategy(new BN(1000000000))
         .accounts({
-          vault: vaultFour,
-          strategy: strategyFour,
+          vault: vaultOne,
+          strategy,
           signer: vaultsAdmin.publicKey,
         })
         .signers([vaultsAdmin])
         .rpc();
+
+      const strategyDataBefore = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
       try {
         await vaultProgram.methods
-          .removeStrategy(strategyFour, false)
+          .removeStrategy(strategy, false)
           .accounts({
-            vault: vaultFour,
-            signer: whitelistedUser.publicKey,
+            vault: vaultOne,
+            strategyData: strategyDataBefore,
+            recipient: strategiesManager.publicKey,
+            signer: reportingManager.publicKey,
           })
-          .signers([whitelistedUser])
+          .signers([reportingManager])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError2003);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const strategyDataAfter = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(
+          strategyDataAfter
+        );
+      assert.isNotNull(strategyDataAccount);
+    });
+
+    it("Reporting Manager - Calling init vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      try {
+        await vaultProgram.methods
+          .initVault(vaultConfig)
+          .accounts({
+            underlyingMint,
+            signer: reportingManager.publicKey,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
     });
 
-    it("Whitelisted User - Shutting down the vault should revert", async function () {
-      this.qaseId(54);
+    it("Reporting Manager - Calling init vault shares method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      await vaultProgram.methods
+        .initVault(vaultConfig)
+        .accounts({
+          underlyingMint,
+          signer: vaultsAdmin.publicKey,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const config = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("config")],
+        vaultProgram.programId
+      )[0];
+
+      let configAccount = await vaultProgram.account.config.fetch(config);
+
+      const nextVaultIndex = configAccount.nextVaultIndex.toNumber();
+
+      const vault = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("vault"),
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(nextVaultIndex)]).buffer)
+          ),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const sharesMint = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("shares"), vault.toBuffer()],
+        vaultProgram.programId
+      )[0];
+
+      const [metadataAddress] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(METADATA_SEED),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          sharesMint.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
+      );
+
+      const sharesConfig = {
+        name: "Localnet Tests Token",
+        symbol: "LTT1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      try {
+        await vaultProgram.methods
+          .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+          .accounts({
+            metadata: metadataAddress,
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let configAccountAfter = await vaultProgram.account.config.fetch(config);
+
+      assert.strictEqual(
+        configAccountAfter.nextVaultIndex.toNumber(),
+        nextVaultIndex
+      );
+
+      // initVaultShares successfully to avoid conflicts in following tests
+      await vaultProgram.methods
+        .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+        .accounts({
+          metadata: metadataAddress,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+    });
+
+    it("Reporting Manager - Calling shutdown vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
       try {
         await vaultProgram.methods
           .shutdownVault()
-          .accounts({
-            vault: vaultFour,
-            signer: whitelistedUser.publicKey,
-          })
-          .signers([whitelistedUser])
+          .accounts({ vault, signer: reportingManager.publicKey })
+          .signers([reportingManager])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError2003);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.isShutdown, false);
+      assert.strictEqual(vaultAccount.depositLimit.toNumber(), 1000000000);
     });
 
-    it("Whitelisted User - Update debt for the vault should revert", async function () {
-      this.qaseId(55);
-      try {
-        await vaultProgram.methods
-          .updateDebt(new BN(100))
-          .accounts({
-            vault: vaultFour,
-            strategy: strategyFour,
-            strategyTokenAccount: strategyTokenAccountFour,
-            signer: whitelistedUser.publicKey,
-            // @ts-ignore
-            tokenProgram: token.TOKEN_PROGRAM_ID,
-            strategyProgram: strategyProgram.programId,
-          })
-          .signers([whitelistedUser])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError2003);
-      }
-    });
-
-    it("Whitelisted User - Set deposit limit for the vault should revert", async function () {
-      this.qaseId(56);
-      try {
-        await vaultProgram.methods
-          .setDepositLimit(new BN(2000))
-          .accounts({
-            vault: vaultFour,
-            signer: whitelistedUser.publicKey,
-          })
-          .signers([whitelistedUser])
-          .rpc();
-        assert.fail("Error was not thrown");
-      } catch (err) {
-        expect(err.message).contains(anchorError2003);
-      }
-    });
-
-    it("Whitelisted User - Process report for vault should revert", async function () {
-      this.qaseId(57);
-      const feeRecipient = anchor.web3.Keypair.generate();
-      await airdrop({
-        connection,
-        publicKey: feeRecipient.publicKey,
-        amount: 10e9,
-      });
-      const feeRecipientSharesAccount = await token.createAccount(
-        connection,
-        feeRecipient,
-        sharesMintFour,
-        feeRecipient.publicKey
+    it("Reporting Manager - Calling close vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
       );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      await vaultProgram.methods
+        .shutdownVault()
+        .accounts({ vault, signer: vaultsAdmin.publicKey })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .closeVault()
+          .accounts({
+            vault,
+            signer: reportingManager.publicKey,
+            recipient: vaultsAdmin.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetchNullable(vault);
+      assert.isNotNull(vaultAccount);
+    });
+
+    it("Reporting Manager - Calling update debt method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      try {
+        await vaultProgram.methods
+          .updateDebt(new BN(allocationAmount))
+          .accounts({
+            vault: vault,
+            strategy: strategy,
+            signer: reportingManager.publicKey,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+      assert.strictEqual(
+        vaultTokenAccountInfo.amount.toString(),
+        depositAmount.toString()
+      );
+
+      let strategyTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        strategyTokenAccount
+      );
+      assert.strictEqual(strategyTokenAccountInfo.amount.toString(), "0");
+
+      let strategyAccount = await strategyProgram.account.simpleStrategy.fetch(
+        strategy
+      );
+      assert.strictEqual(strategyAccount.totalAssets.toString(), "0");
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+        vaultProgram.programId
+      )[0];
+      const strategyDataAccount = await vaultProgram.account.strategyData.fetch(
+        strategyData
+      );
+
+      assert.strictEqual(strategyDataAccount.currentDebt.toString(), "0");
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+
+      assert.strictEqual(vaultAccount.totalDebt.toString(), "0");
+      assert.strictEqual(
+        vaultAccount.totalIdle.toString(),
+        depositAmount.toString()
+      );
+    });
+
+    it("Reporting Manager - Calling set deposit limit method should revert", async () => {
+      const newDepositLimit = new BN(1);
+
+      try {
+        await vaultProgram.methods
+          .setDepositLimit(newDepositLimit)
+          .accounts({
+            vault: vaultOne,
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      expect(vaultAccount.depositLimit.toString()).not.equal(
+        newDepositLimit.toString()
+      );
+    });
+
+    it("Reporting Manager - Calling set min user deposit method should revert", async () => {
+      const newMinUserDeposit = 1;
+
+      try {
+        await vaultProgram.methods
+          .setMinUserDeposit(new BN(newMinUserDeposit))
+          .accounts({
+            vault: vaultOne,
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      expect(vaultAccount.minUserDeposit.toString()).not.equal(
+        newMinUserDeposit.toString()
+      );
+    });
+
+    it("Reporting Manager - Calling set profit max unlock time method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newProfitMaxUnlockTime = 1;
+
+      try {
+        await vaultProgram.methods
+          .setProfitMaxUnlockTime(new BN(newProfitMaxUnlockTime))
+          .accounts({
+            vault: vault,
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.profitMaxUnlockTime.toString(), "0");
+    });
+
+    it("Reporting Manager - Calling set min total idle method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newMinTotalIdle = 1;
+
+      try {
+        await vaultProgram.methods
+          .setMinTotalIdle(new BN(1))
+          .accounts({
+            vault: vault,
+            signer: reportingManager.publicKey,
+          })
+          .signers([reportingManager])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.minimumTotalIdle.toString(), "0");
+    });
+
+    it("Reporting Manager - Calling deposit method for kyc verified only vault should revert", async () => {
+      const depositAmount = 50;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const sharesAccount = await token.createAccount(
+        provider.connection,
+        reportingManager,
+        sharesMint,
+        reportingManager.publicKey
+      );
+
+      const tokenAccount = await token.createAccount(
+        connection,
+        reportingManager,
+        underlyingMint,
+        reportingManager.publicKey
+      );
+
+      const mintAmount = 1000;
+
+      await token.mintTo(
+        connection,
+        underlyingMintOwner,
+        underlyingMint,
+        tokenAccount,
+        underlyingMintOwner.publicKey,
+        mintAmount
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          reportingManager.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .deposit(new BN(depositAmount))
+          .accounts({
+            vault: vault,
+            accountant: accountant,
+            user: reportingManager.publicKey,
+            userTokenAccount: tokenAccount,
+            userSharesAccount: sharesAccount,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([reportingManager])
+          .remainingAccounts([
+            {
+              pubkey: kycVerified,
+              isWritable: false,
+              isSigner: false,
+            },
+          ])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(errorStrings.kycRequired);
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+
+      assert.strictEqual(vaultTokenAccountInfo.amount.toString(), "0");
+
+      let userTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        nonVerifiedUserTokenAccount
+      );
+      assert.strictEqual(
+        userTokenAccountInfo.amount.toString(),
+        nonVerifiedUserCurrentAmount.toString()
+      );
+
+      let userSharesAccountInfo = await token.getAccount(
+        provider.connection,
+        sharesAccount
+      );
+      assert.strictEqual(userSharesAccountInfo.amount.toString(), "0");
+    });
+  });
+
+  describe("KYC Verified User Role Tests", () => {
+    it("KYC Verified User - Calling deposit method for kyc verified only vault is successful", async () => {
+      const depositAmount = 50;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const userSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: userSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+
+      assert.strictEqual(
+        vaultTokenAccountInfo.amount.toString(),
+        depositAmount.toString()
+      );
+
+      let userTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        kycVerifiedUserTokenAccount
+      );
+      assert.strictEqual(
+        userTokenAccountInfo.amount.toString(),
+        kycVerifiedUserCurrentAmount.toString()
+      );
+
+      let userSharesAccountInfo = await token.getAccount(
+        provider.connection,
+        userSharesAccount
+      );
+      assert.strictEqual(
+        userSharesAccountInfo.amount.toString(),
+        depositAmount.toString()
+      );
+    });
+
+    it("KYC Verified User - Init accountant should revert", async function () {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const nextAccountantIndexBefore =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      try {
+        await accountantProgram.methods
+          .initAccountant(accountantType)
+          .accounts({
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const nextAccountantIndexAfter =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      assert.strictEqual(nextAccountantIndexAfter, nextAccountantIndexBefore);
+    });
+
+    it("KYC Verified User - Calling set fee method should revert", async function () {
+      try {
+        await accountantProgram.methods
+          .setPerformanceFee(new BN(100))
+          .accounts({
+            accountant: accountantOne,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let genericAccountant =
+        await accountantProgram.account.genericAccountant.fetch(accountantOne);
+      assert.strictEqual(genericAccountant.performanceFee.toNumber(), 500);
+    });
+
+    it("KYC Verified User - Calling distribute method should revert", async function () {
+      try {
+        await accountantProgram.methods
+          .distribute()
+          .accounts({
+            recipient: feeRecipientSharesAccountOne,
+            accountant: accountantOne,
+            underlyingMint: sharesMintOne,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("KYC Verified User - Calling init strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      try {
+        await initializeSimpleStrategy({
+          strategyProgram,
+          vault: vaultOne,
+          underlyingMint,
+          signer: kycVerifiedUser,
+          config: strategyConfig,
+        });
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("KYC Verified User - Calling add strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      try {
+        await vaultProgram.methods
+          .addStrategy(new BN(1000000000))
+          .accounts({
+            vault: vaultOne,
+            strategy,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(strategyData);
+      assert.isNull(strategyDataAccount);
+    });
+
+    it("KYC Verified User - Calling remove strategy method should revert", async () => {
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vaultOne,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vaultOne,
+          strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const strategyDataBefore = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      try {
+        await vaultProgram.methods
+          .removeStrategy(strategy, false)
+          .accounts({
+            vault: vaultOne,
+            strategyData: strategyDataBefore,
+            recipient: strategiesManager.publicKey,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const strategyDataAfter = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("strategy_data"),
+          vaultOne.toBuffer(),
+          strategy.toBuffer(),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const strategyDataAccount =
+        await vaultProgram.account.strategyData.fetchNullable(
+          strategyDataAfter
+        );
+      assert.isNotNull(strategyDataAccount);
+    });
+
+    it("KYC Verified User - Calling init vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      try {
+        await vaultProgram.methods
+          .initVault(vaultConfig)
+          .accounts({
+            underlyingMint,
+            signer: kycVerifiedUser.publicKey,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+    });
+
+    it("KYC Verified User - Calling init vault shares method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      await vaultProgram.methods
+        .initVault(vaultConfig)
+        .accounts({
+          underlyingMint,
+          signer: vaultsAdmin.publicKey,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const config = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("config")],
+        vaultProgram.programId
+      )[0];
+
+      let configAccount = await vaultProgram.account.config.fetch(config);
+
+      const nextVaultIndex = configAccount.nextVaultIndex.toNumber();
+
+      const vault = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("vault"),
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(nextVaultIndex)]).buffer)
+          ),
+        ],
+        vaultProgram.programId
+      )[0];
+
+      const sharesMint = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("shares"), vault.toBuffer()],
+        vaultProgram.programId
+      )[0];
+
+      const [metadataAddress] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(METADATA_SEED),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          sharesMint.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
+      );
+
+      const sharesConfig = {
+        name: "Localnet Tests Token",
+        symbol: "LTT1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      try {
+        await vaultProgram.methods
+          .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+          .accounts({
+            metadata: metadataAddress,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let configAccountAfter = await vaultProgram.account.config.fetch(config);
+
+      assert.strictEqual(
+        configAccountAfter.nextVaultIndex.toNumber(),
+        nextVaultIndex
+      );
+
+      // initVaultShares successfully to avoid conflicts in following tests
+      await vaultProgram.methods
+        .initVaultShares(new BN(nextVaultIndex), sharesConfig)
+        .accounts({
+          metadata: metadataAddress,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+    });
+
+    it("KYC Verified User - Calling shutdown vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      try {
+        await vaultProgram.methods
+          .shutdownVault()
+          .accounts({ vault, signer: kycVerifiedUser.publicKey })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.isShutdown, false);
+      assert.strictEqual(vaultAccount.depositLimit.toNumber(), 1000000000);
+    });
+
+    it("KYC Verified User - Calling close vault method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      await vaultProgram.methods
+        .shutdownVault()
+        .accounts({ vault, signer: vaultsAdmin.publicKey })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      try {
+        await vaultProgram.methods
+          .closeVault()
+          .accounts({
+            vault,
+            signer: kycVerifiedUser.publicKey,
+            recipient: accountantAdmin.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetchNullable(vault);
+      assert.isNotNull(vaultAccount);
+    });
+
+    it("KYC Verified User - Calling update debt method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      try {
+        await vaultProgram.methods
+          .updateDebt(new BN(allocationAmount))
+          .accounts({
+            vault: vault,
+            strategy: strategy,
+            signer: kycVerifiedUser.publicKey,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
+      );
+      assert.strictEqual(
+        vaultTokenAccountInfo.amount.toString(),
+        depositAmount.toString()
+      );
+
+      let strategyTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        strategyTokenAccount
+      );
+      assert.strictEqual(strategyTokenAccountInfo.amount.toString(), "0");
+
+      let strategyAccount = await strategyProgram.account.simpleStrategy.fetch(
+        strategy
+      );
+      assert.strictEqual(strategyAccount.totalAssets.toString(), "0");
+
+      const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+        vaultProgram.programId
+      )[0];
+      const strategyDataAccount = await vaultProgram.account.strategyData.fetch(
+        strategyData
+      );
+
+      assert.strictEqual(strategyDataAccount.currentDebt.toString(), "0");
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+
+      assert.strictEqual(vaultAccount.totalDebt.toString(), "0");
+      assert.strictEqual(
+        vaultAccount.totalIdle.toString(),
+        depositAmount.toString()
+      );
+    });
+
+    it("KYC Verified User - Calling set deposit limit method should revert", async () => {
+      const newDepositLimit = new BN(1);
+
+      try {
+        await vaultProgram.methods
+          .setDepositLimit(newDepositLimit)
+          .accounts({
+            vault: vaultOne,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      let vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      expect(vaultAccount.depositLimit.toNumber()).not.to.equal(
+        newDepositLimit
+      );
+    });
+
+    it("KYC Verified User - Calling set min user deposit method should revert", async () => {
+      const newMinUserDeposit = 1;
+
+      try {
+        await vaultProgram.methods
+          .setMinUserDeposit(new BN(newMinUserDeposit))
+          .accounts({
+            vault: vaultOne,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vaultOne);
+      expect(vaultAccount.minUserDeposit.toNumber()).not.equal(
+        newMinUserDeposit
+      );
+    });
+
+    it("KYC Verified User - Calling set profit max unlock time method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newProfitMaxUnlockTime = 1;
+
+      try {
+        await vaultProgram.methods
+          .setProfitMaxUnlockTime(new BN(newProfitMaxUnlockTime))
+          .accounts({
+            vault: vault,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.profitMaxUnlockTime.toString(), "0");
+    });
+
+    it("KYC Verified User - Calling set min total idle method should revert", async () => {
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const newMinTotalIdle = 1;
+
+      try {
+        await vaultProgram.methods
+          .setMinTotalIdle(new BN(1))
+          .accounts({
+            vault: vault,
+            signer: kycVerifiedUser.publicKey,
+          })
+          .signers([kycVerifiedUser])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
+      }
+
+      const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+      assert.strictEqual(vaultAccount.minimumTotalIdle.toString(), "0");
+    });
+
+    it("KYC Verified User - Calling process report method should revert", async () => {
+      const depositAmount = 100;
+      const allocationAmount = 100;
+
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const strategyConfig = new SimpleStrategyConfig({
+        depositLimit: new BN(1000),
+        performanceFee: new BN(1000),
+        feeManager: strategiesManager.publicKey,
+      });
+
+      const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+        strategyProgram,
+        vault: vault,
+        underlyingMint,
+        signer: strategiesManager,
+        config: strategyConfig,
+      });
+
+      await vaultProgram.methods
+        .addStrategy(new BN(1000000000))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      const kycVerifiedUserSharesAccount = await token.createAccount(
+        provider.connection,
+        kycVerifiedUser,
+        sharesMint,
+        kycVerifiedUser.publicKey
+      );
+
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          kycVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
+        .accounts({
+          signer: accountantAdmin.publicKey,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
+
+      await vaultProgram.methods
+        .deposit(new BN(depositAmount))
+        .accounts({
+          vault: vault,
+          accountant: accountant,
+          user: kycVerifiedUser.publicKey,
+          userTokenAccount: kycVerifiedUserTokenAccount,
+          userSharesAccount: kycVerifiedUserSharesAccount,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([kycVerifiedUser])
+        .remainingAccounts([
+          { pubkey: kycVerified, isWritable: false, isSigner: false },
+        ])
+        .rpc();
+
+      kycVerifiedUserCurrentAmount -= depositAmount;
+
+      await vaultProgram.methods
+        .updateDebt(new BN(allocationAmount))
+        .accounts({
+          vault: vault,
+          strategy: strategy,
+          signer: vaultsAdmin.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .signers([vaultsAdmin])
+        .rpc();
+
+      await strategyProgram.methods
+        .reportProfit(new BN(10))
+        .accounts({
+          strategy: strategyOne,
+          signer: strategiesManager.publicKey,
+          underlyingMint: underlyingMint,
+          tokenProgram: token.TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts([
+          {
+            pubkey: strategiesManagerOneTokenAccount,
+            isWritable: true,
+            isSigner: false,
+          },
+        ])
+        .signers([strategiesManager])
+        .rpc();
 
       try {
         await vaultProgram.methods
           .processReport()
           .accounts({
-            vault: vaultFour,
-            strategy: strategyFour,
-            signer: whitelistedUser.publicKey,
-            feeSharesRecipient: feeRecipientSharesAccount,
+            vault: vaultOne,
+            strategy: strategyOne,
+            signer: kycVerifiedUser.publicKey,
+            accountant: accountantOne,
           })
-          .signers([whitelistedUser])
+          .signers([kycVerifiedUser])
           .rpc();
         assert.fail("Error was not thrown");
       } catch (err) {
-        expect(err.message).contains(anchorError2003);
+        expect(err.message).to.contain(
+          errorStrings.accountExpectedToAlreadyBeInitialized
+        );
       }
     });
+  });
 
-    it("Whitelisted User - Depositing into the vault is successful", async function () {
-      this.qaseId(58);
-      const depositAmount = 100;
+  describe("Non-KYC Verified User Role Tests", () => {
+    it("Non-KYC Verified User - Calling deposit method for kyc verified only vault should revert", async () => {
+      const depositAmount = 50;
 
-      const whitelistedUserSharesAccount = await token.createAccount(
-        connection,
-        whitelistedUser,
-        sharesMintFour,
-        whitelistedUser.publicKey
+      accountantConfigAccount = await accountantProgram.account.config.fetch(
+        accountantConfig
+      );
+      const accountantIndex =
+        accountantConfigAccount.nextAccountantIndex.toNumber();
+
+      const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from(
+            new Uint8Array(new BigUint64Array([BigInt(accountantIndex)]).buffer)
+          ),
+        ],
+        accountantProgram.programId
+      )[0];
+
+      const vaultConfig = {
+        depositLimit: new BN(1000000000),
+        userDepositLimit: new BN(0),
+        minUserDeposit: new BN(0),
+        accountant: accountant,
+        profitMaxUnlockTime: new BN(0),
+        kycVerifiedOnly: true,
+        directDepositEnabled: false,
+        whitelistedOnly: false,
+      };
+
+      const sharesConfig = {
+        name: "Test Roles and Permissions One",
+        symbol: "TRPV1",
+        uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+      };
+
+      const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+        await initializeVault({
+          vaultProgram,
+          underlyingMint,
+          signer: vaultsAdmin,
+          vaultConfig: vaultConfig,
+          sharesConfig: sharesConfig,
+        });
+
+      const userSharesAccount = await token.createAccount(
+        provider.connection,
+        nonVerifiedUser,
+        sharesMint,
+        nonVerifiedUser.publicKey
       );
 
-      await vaultProgram.methods
-        .deposit(new BN(depositAmount))
+      const kycVerified = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("user_role"),
+          nonVerifiedUser.publicKey.toBuffer(),
+          ROLES_BUFFER.KYC_VERIFIED,
+        ],
+        accessControlProgram.programId
+      )[0];
+
+      const accountantType = { generic: {} };
+
+      await accountantProgram.methods.initAccountant(accountantType)
         .accounts({
-          vault: vaultFour,
-          user: whitelistedUser.publicKey,
-          userTokenAccount: whitelistedUserTokenAccount,
-          userSharesAccount: whitelistedUserSharesAccount,
+          signer: accountantAdmin.publicKey,
         })
-        .signers([whitelistedUser])
+        .signers([accountantAdmin])
         .rpc();
 
-      // Fetch the vault token account balance to verify the deposit
-      const vaultTokenAccountInfo = await token.getAccount(
-        connection,
-        vaultTokenAccountFour
-      );
-      assert.strictEqual(vaultTokenAccountInfo.amount.toString(), "100");
+      await accountantProgram.methods.initTokenAccount()
+        .accounts({
+          accountant: accountant,
+          signer: accountantAdmin.publicKey,
+          mint: sharesMint,
+        })
+        .signers([accountantAdmin])
+        .rpc();
 
-      // check the user shares account balance
-      const userSharesAccountInfo = await token.getAccount(
-        connection,
-        whitelistedUserSharesAccount
+      try {
+        await vaultProgram.methods
+          .deposit(new BN(depositAmount))
+          .accounts({
+            vault: vault,
+            accountant: accountant,
+            user: nonVerifiedUser.publicKey,
+            userTokenAccount: nonVerifiedUserTokenAccount,
+            userSharesAccount: userSharesAccount,
+            underlyingMint: underlyingMint,
+            tokenProgram: token.TOKEN_PROGRAM_ID,
+          })
+          .signers([nonVerifiedUser])
+          .remainingAccounts([
+            {
+              pubkey: kycVerified,
+              isWritable: false,
+              isSigner: false,
+            },
+          ])
+          .rpc();
+        assert.fail("Error was not thrown");
+      } catch (err) {
+        expect(err.message).to.contain(errorStrings.kycRequired);
+      }
+
+      let vaultTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        vaultTokenAccount
       );
-      assert.strictEqual(userSharesAccountInfo.amount.toString(), "100");
+
+      assert.strictEqual(vaultTokenAccountInfo.amount.toString(), "0");
+
+      let userTokenAccountInfo = await token.getAccount(
+        provider.connection,
+        nonVerifiedUserTokenAccount
+      );
+      assert.strictEqual(
+        userTokenAccountInfo.amount.toString(),
+        nonVerifiedUserCurrentAmount.toString()
+      );
+
+      let userSharesAccountInfo = await token.getAccount(
+        provider.connection,
+        userSharesAccount
+      );
+      assert.strictEqual(userSharesAccountInfo.amount.toString(), "0");
     });
   });
 });

@@ -1,4 +1,7 @@
 use anchor_lang::prelude::*;
+use strategy::Withdraw;
+
+use crate::state::WithdrawRequest;
 
 #[error_code]
 pub enum ErrorCode {
@@ -8,26 +11,8 @@ pub enum ErrorCode {
     #[msg("Zero value")]
     ZeroValue,
 
-    #[msg("Invalid strategy data")]
-    InvalidStrategyData,
-
-    #[msg("Invalid strategy")]
-    InvalidStrategy,
-
     #[msg("Invalid account type")]
     InvalidAccountType,
-
-    #[msg("Max strategies reached")]
-    StrategiesFull,
-
-    #[msg("Strategy already added")]
-    StrategyAlreadyAdded,
-
-    #[msg("Strategy not found")]
-    StrategyNotFound,
-
-    #[msg("Strategy not active")]
-    InactiveStrategy,
 
     #[msg("Debt is the same")]
     SameDebt,
@@ -56,9 +41,6 @@ pub enum ErrorCode {
     #[msg("Insufficient shares")]
     InsufficientShares,
 
-    #[msg("Is not a vault strategy")]
-    IsNotVaultStrategy,
-
     #[msg("Exceed withdraw limit")]
     ExceedWithdrawLimit,
 
@@ -74,12 +56,33 @@ pub enum ErrorCode {
     #[msg("Vault has debt")]
     VaultHasDebt,
 
-    #[msg("Signer has no access")]
-    AccessDenied,
-
     #[msg("Only KYC verified users can deposit")]
     KYCRequired,
 
     #[msg("Strategy cannot be added")]
     InvalidStrategyToAdd,
+
+    #[msg("Invalid strategy")]
+    InvalidStrategy,
+
+    #[msg("All strategy data pda must be closed before vault closure")]
+    VaultHasStrategies,
+
+    #[msg("Direct deposit is disabled")]
+    DirectDepositDisabled,
+
+    #[msg("Account is not whitelisted")]
+    NotWhitelisted,
+
+    #[msg("User deposit limit exceeded")]
+    ExceedUserDepositLimit,
+
+    #[msg("Serialization error")]
+    SerializationError,
+
+    #[msg("Withdraw requests are disabled")]
+    WithdrawRequestsDisabled,
+
+    #[msg("Direct withdraw is disabled")]
+    DirectWithdrawDisabled,
 }

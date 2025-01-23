@@ -11,7 +11,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("EDA9ee5UKzdqrHgSd5v64bNnbCae1t7NJfUpvS7DZod");
+declare_id!("Ce2HhVGaVASoDmThWkzBQfnTjjAmQ8oPnEc1iAXqLxYm");
 
 // we need to define a trait for the strategies
 // they aren't defined otherwise, because we work with unchecked accounts
@@ -21,6 +21,8 @@ pub struct RegAcc<'info> {
     pub simple_strategy: Account<'info, SimpleStrategy>,
     #[account()]
     pub tf_strategy: Account<'info, TradeFintechStrategy>,
+    #[account()]
+    pub orca_strategy: Account<'info, OrcaStrategy>,
 }
 
 #[program]
@@ -40,7 +42,10 @@ pub mod strategy {
         handle_init_strategy(ctx, strategy_type, config)
     }
 
-    pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
+    pub fn deposit<'info>(
+        ctx: Context<'_, '_, '_, 'info, Deposit<'info>>, 
+        amount: u64
+    ) -> Result<()> {
         handle_deposit(ctx, amount)
     }
 
@@ -64,11 +69,11 @@ pub mod strategy {
         handle_transfer_management(ctx, new_admin)
     }
 
-    pub fn set_performance_fee(ctx: Context<SetPerformanceFee>, fee: u64) -> Result<()> {
+    pub fn set_performance_fee(ctx: Context<SetStrategyValue>, fee: u64) -> Result<()> {
         handle_set_performance_fee(ctx, fee)
     }
 
-    pub fn set_fee_manager(ctx: Context<SetFeeManager>, recipient: Pubkey) -> Result<()> {
+    pub fn set_fee_manager(ctx: Context<SetStrategyValue>, recipient: Pubkey) -> Result<()> {
         handle_set_fee_manager(ctx, recipient)
     }
 
@@ -78,5 +83,13 @@ pub mod strategy {
 
     pub fn deploy_funds<'info>(ctx:  Context<'_, '_, '_, 'info, DeployFunds<'info>>, amount: u64) -> Result<()> {
         handle_deploy_funds(ctx, amount)
+    }
+
+    pub fn init_token_account(ctx: Context<InitTokenAccount>) -> Result<()> {
+        handle_init_token_account(ctx)
+    }
+
+    pub fn free_funds<'info>(ctx:  Context<'_, '_, '_, 'info, FreeFunds<'info>>, amount: u64) -> Result<()> {
+        handle_free_funds(ctx, amount)
     }
 }

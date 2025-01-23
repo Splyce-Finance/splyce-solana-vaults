@@ -6,38 +6,43 @@ use strategy::cpi::accounts::{
     Deposit,
     Withdraw
 };
+use strategy::StrategyType;
 
 pub fn deposit<'a>(
     strategy: AccountInfo<'a>,
     vault: AccountInfo<'a>,
     underlying_token_account: AccountInfo<'a>,
+    underlying_mint: AccountInfo<'a>,
     vault_token_account: AccountInfo<'a>,
     token_program: AccountInfo<'a>,
     strategy_program: AccountInfo<'a>,
     assets_to_deposit: u64,
-    seeds: &[&[u8]],
+    seeds: &[&[&[u8]]],
+    remaining_accounts: Vec<AccountInfo<'a>>,
 ) -> Result<()> {
+    let mut ctx = CpiContext::new_with_signer(
+        strategy_program,
+        Deposit {
+            strategy,
+            signer: vault,
+            underlying_token_account,
+            underlying_mint,
+            vault_token_account,
+            token_program,
+        },
+        seeds,  // Pass in the seeds from the previously loaded vault
+    );
+    ctx.remaining_accounts = remaining_accounts;
+
     // Perform the CPI deposit with pre-extracted data
-    strategy::cpi::deposit(
-        CpiContext::new_with_signer(
-            strategy_program,
-            Deposit {
-                strategy,
-                signer: vault,
-                underlying_token_account,
-                vault_token_account,
-                token_program,
-            },
-            &[&seeds],  // Pass in the seeds from the previously loaded vault
-        ),
-        assets_to_deposit,
-    )
+    strategy::cpi::deposit(ctx, assets_to_deposit)
 }
 
 pub fn withdraw<'a>(
     strategy: AccountInfo<'a>,
     vault: AccountInfo<'a>,
     underlying_token_account: AccountInfo<'a>,
+    underlying_mint: AccountInfo<'a>,
     vault_token_account: &mut InterfaceAccount<'a, TokenAccount>,
     token_program: AccountInfo<'a>,
     strategy_program: AccountInfo<'a>,
@@ -47,11 +52,12 @@ pub fn withdraw<'a>(
 ) -> Result<u64> {
     let pre_balance = vault_token_account.amount;
 
-    let mut context = CpiContext::new_with_signer(
+    let mut ctx = CpiContext::new_with_signer(
         strategy_program, 
         Withdraw {
             strategy,
             underlying_token_account,
+            underlying_mint,
             signer: vault,
             vault_token_account: vault_token_account.to_account_info(),
             token_program,
@@ -59,9 +65,9 @@ pub fn withdraw<'a>(
         seeds,
     );
     
-    context.remaining_accounts = remaining_accounts;
+    ctx.remaining_accounts = remaining_accounts;
 
-    strategy::cpi::withdraw(context, assets_to_withdraw)?;
+    strategy::cpi::withdraw(ctx, assets_to_withdraw)?;
 
     vault_token_account.reload()?;
     let post_balance = vault_token_account.amount;
@@ -89,9 +95,19 @@ pub fn get_total_assets(strategy_acc: &AccountInfo) -> Result<u64> {
     Ok(strategy.total_assets())
 }
 
+pub fn get_total_invested(strategy_acc: &AccountInfo) -> Result<u64> {
+    let strategy = deserialize(strategy_acc)?;
+    Ok(strategy.total_invested())
+}
+
 pub fn get_token_account_key(strategy_acc: &AccountInfo) -> Result<Pubkey> {
     let strategy = deserialize(strategy_acc)?;
     Ok(strategy.token_account())
+}
+
+pub fn get_strategy_type(strategy_acc: &AccountInfo) -> Result<StrategyType> {
+    let strategy = deserialize(strategy_acc)?;
+    Ok(strategy.strategy_type())
 }
 
 pub fn assess_share_of_unrealised_losses(

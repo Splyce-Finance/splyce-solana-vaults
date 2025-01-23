@@ -24,9 +24,11 @@ pub struct SimpleStrategy {
     pub underlying_token_acc: Pubkey,
 
     // this value mast be u64 because of the borsh serialization
-    pub undelying_decimals: u8,
+    pub underlying_decimals: u8,
     pub total_assets: u64,
     pub deposit_limit: u64,
+
+    pub total_invested: u64,
 
     pub fee_data: FeeData,
 }
@@ -49,7 +51,7 @@ impl StrategyManagement for SimpleStrategy {
     }
 }
 
-impl StretegyGetters for SimpleStrategy {
+impl StrategyGetters for SimpleStrategy {
     fn strategy_type(&self) -> StrategyType {
         StrategyType::Simple
     }
@@ -62,12 +64,16 @@ impl StretegyGetters for SimpleStrategy {
         self.total_assets
     }
 
+    fn total_invested(&self) -> u64 {
+        0
+    }
+
     fn available_deposit(&self) -> u64 {
         self.deposit_limit - self.total_assets
     }
 
     fn available_withdraw(&self) -> u64 {
-        self.deposit_limit
+        self.total_assets - self.total_invested
     }
 
     fn token_account(&self) -> Pubkey {
@@ -110,6 +116,7 @@ impl Strategy for SimpleStrategy {
             remaining[0].to_account_info(),
             accounts.underlying_token_account.to_account_info(),
             accounts.signer.to_account_info(),
+            &accounts.underlying_mint,
             profit,
         )?;
 
@@ -120,6 +127,7 @@ impl Strategy for SimpleStrategy {
             &mut Report {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
+            underlying_mint: accounts.underlying_mint.clone(),
             token_program: accounts.token_program.clone(),
             signer: accounts.signer.clone(),
             }, 
@@ -140,6 +148,7 @@ impl Strategy for SimpleStrategy {
             accounts.underlying_token_account.to_account_info(),
             remaining[0].to_account_info(),
             accounts.strategy.to_account_info(),
+            &accounts.underlying_mint,
             loss,
             &self.seeds(),
         )?;
@@ -151,6 +160,7 @@ impl Strategy for SimpleStrategy {
             &mut Report {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
+            underlying_mint: accounts.underlying_mint.clone(),
             token_program: accounts.token_program.clone(),
             signer: accounts.signer.clone(),
             }, 
@@ -184,16 +194,42 @@ impl Strategy for SimpleStrategy {
         if accounts.underlying_token_account.key() != self.underlying_token_acc {
             return Err(ErrorCode::InvalidAccount.into());
         }
-        let new_total_assets = accounts.underlying_token_account.amount;
-        Ok(new_total_assets)
+        let idle_assets = accounts.underlying_token_account.amount;
+        Ok(idle_assets + self.total_invested)
     }
 
-    fn deploy_funds<'info>(&mut self, _accounts: &DeployFunds<'info>, _remaining: &[AccountInfo<'info>], _amount: u64) -> Result<()> {
+    fn deploy_funds<'info>(&mut self, accounts: &DeployFunds<'info>, remaining: &[AccountInfo<'info>], amount: u64) -> Result<()> {
+        self.total_invested += amount;
+
+        let seeds = self.seeds();
+        token::transfer_with_signer(
+            accounts.token_program.to_account_info(),
+            accounts.underlying_token_account.to_account_info(),
+            remaining[0].to_account_info(),
+            accounts.strategy.to_account_info(),
+            &accounts.underlying_mint,
+            amount,
+            &seeds
+        )?;
+
         Ok(())
     }
 
-    fn free_funds<'info>(&mut self, _accounts: &FreeFunds<'info>, _remaining: &[AccountInfo<'info>], _amount: u64) -> Result<()> {
-        Ok(())
+    fn free_funds<'info>(&mut self, accounts: &FreeFunds<'info>, remaining: &[AccountInfo<'info>], amount: u64) -> Result<()> {
+        if self.total_invested < amount {
+            return Err(ErrorCode::InsufficientFunds.into());
+        }
+
+        self.total_invested -= amount;
+
+        token::transfer(
+            accounts.token_program.to_account_info(),
+            remaining[0].to_account_info(),
+            accounts.underlying_token_account.to_account_info(),
+            accounts.signer.to_account_info(),
+            &accounts.underlying_mint,
+            amount,
+        )
     }
 
     fn set_total_assets(&mut self, total_assets: u64) {
@@ -218,7 +254,7 @@ impl StrategyInit for SimpleStrategy {
         self.index_bytes = index.to_le_bytes();
         self.vault = vault;
         self.underlying_mint = underlying_mint.key();
-        self.undelying_decimals = underlying_mint.decimals;
+        self.underlying_decimals = underlying_mint.decimals;
         self.underlying_token_acc = underlying_token_acc;
         self.deposit_limit = config.deposit_limit;
         self.total_assets = 0;
@@ -237,7 +273,7 @@ impl StrategyInit for SimpleStrategy {
                 vault: self.vault,
                 underlying_mint: self.underlying_mint,
                 underlying_token_acc: self.underlying_token_acc,
-                undelying_decimals: self.undelying_decimals,
+                underlying_decimals: self.underlying_decimals,
                 deposit_limit: self.deposit_limit,
                 deposit_period_ends: 0,
                 lock_period_ends: 0,

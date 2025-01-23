@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 
-use crate::constants::{DISCRIMINATOR_LEN, VAULT_SEED, SHARES_SEED, MAX_BPS_EXTENDED};
+use crate::constants::{DISCRIMINATOR_LEN, ONE_SHARE_TOKEN, VAULT_SEED, SHARES_SEED, MAX_BPS_EXTENDED};
 
 #[account(zero_copy(unsafe))]
 #[repr(packed)]
@@ -24,12 +24,17 @@ pub struct Vault {
     pub minimum_total_idle: u64,
     pub total_idle: u64,
     pub deposit_limit: u64,
+    pub user_deposit_limit: u64,
     pub min_user_deposit: u64,
+    pub strategies_amount: u64,
 
     pub is_shutdown: bool,
 
     // only kyc verified users can deposit
     pub kyc_verified_only: bool,
+    pub direct_deposit_enabled: bool,
+    pub whitelisted_only: bool,
+    pub direct_withdraw_enabled: bool,
 
     pub profit_max_unlock_time: u64,
     pub full_profit_unlock_date: u64,
@@ -40,10 +45,14 @@ pub struct Vault {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct VaultConfig {
     pub deposit_limit: u64,
+    pub user_deposit_limit: u64,
     pub min_user_deposit: u64,
     pub accountant: Pubkey,
     pub profit_max_unlock_time: u64,
     pub kyc_verified_only: bool,
+    pub direct_deposit_enabled: bool,
+    pub whitelisted_only: bool,
+    pub direct_withdraw_enabled: bool,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -54,7 +63,7 @@ pub struct SharesConfig {
 }
 
 impl Vault {
-    pub const LEN: usize = DISCRIMINATOR_LEN + Vault::INIT_SPACE;
+    pub const LEN: usize = DISCRIMINATOR_LEN + Self::INIT_SPACE;
 
     pub fn seeds(&self) -> [&[u8]; 3] {
     [
@@ -90,9 +99,13 @@ impl Vault {
 
         self.accountant = config.accountant;
         self.deposit_limit = config.deposit_limit;
+        self.user_deposit_limit = config.user_deposit_limit;
         self.min_user_deposit = config.min_user_deposit;
         self.profit_max_unlock_time = config.profit_max_unlock_time;
         self.kyc_verified_only = config.kyc_verified_only;
+        self.direct_deposit_enabled = config.direct_deposit_enabled;
+        self.whitelisted_only = config.whitelisted_only;
+        self.direct_withdraw_enabled = config.direct_withdraw_enabled;
 
         self.is_shutdown = false;
         self.total_debt = 0;
@@ -111,13 +124,22 @@ impl Vault {
         self.total_shares += shares;
     }
 
+    pub fn handle_direct_deposit(&mut self, amount: u64, shares: u64) {
+        self.total_debt += amount;
+        self.total_shares += shares;
+    }
+
     pub fn handle_withdraw(&mut self, amount: u64, shares: u64) {
         self.total_idle -= amount;
         self.total_shares -= shares;
     }
 
     pub fn max_deposit(&self) -> u64 {
-        self.deposit_limit - self.total_funds()
+        if self.total_funds() >= self.deposit_limit {
+            0
+        } else {
+            self.deposit_limit - self.total_funds()
+        }
     }
 
     pub fn convert_to_shares(&self, amount: u64) -> u64 {
@@ -155,5 +177,20 @@ impl Vault {
 
     pub fn total_shares(&self) -> u64 {
         self.total_shares - self.unlocked_shares().unwrap()
+    }
+
+    /// Calculates the price of one share token with scaling to avoid overflow/underflow
+    /// Returns the scaled share price (actual price = returned value / SCALING_FACTOR)
+    pub fn get_share_price(&self) -> u64 {
+        const SCALING_FACTOR: u128 = 1_000_000; // 10^6 for 6 decimal places of precision
+        let scaled_one_share_token = ONE_SHARE_TOKEN * SCALING_FACTOR;
+
+        if self.total_shares() == 0 {
+            // If there are no shares, return the scaling factor (representing 1.0)
+            scaled_one_share_token as u64
+        } else {
+            // Scale up total funds before division to maintain precision|
+            (scaled_one_share_token * self.total_funds() as u128 / self.total_shares() as u128) as u64
+        }
     }
 }

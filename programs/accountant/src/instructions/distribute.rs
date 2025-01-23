@@ -18,7 +18,10 @@ pub struct Distribute<'info> {
     #[account(mut)]
     pub accountant: UncheckedAccount<'info>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        token::mint = underlying_mint,
+    )]
     pub recipient: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
