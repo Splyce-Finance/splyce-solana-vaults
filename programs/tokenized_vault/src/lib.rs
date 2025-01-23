@@ -122,6 +122,22 @@ pub mod tokenized_vault {
         handle_set_min_total_idle(ctx, value)
     }
 
+    pub fn set_direct_withdraw_enabled(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_direct_withdraw_enabled(ctx, value)
+    }
+
+    pub fn set_user_deposit_limit(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+        handle_set_user_deposit_limit(ctx, value)
+    }
+
+    pub fn set_whitelisted_only(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_whitelisted_only(ctx, value)
+    }
+
+    pub fn set_accountant(ctx: Context<SetVaultProperty>, value: Pubkey) -> Result<()> {
+        handle_set_accountant(ctx, value)
+    }
+
     pub fn process_report(ctx: Context<ProcessReport>) -> Result<()> {
         handle_process_report(ctx)
     }

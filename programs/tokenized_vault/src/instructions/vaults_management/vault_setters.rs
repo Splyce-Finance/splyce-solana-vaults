@@ -83,3 +83,47 @@ pub fn handle_set_min_total_idle(ctx: Context<SetVaultProperty>, value: u64) -> 
 
     Ok(())
 }
+
+pub fn handle_set_direct_withdraw_enabled(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+    let vault = &mut ctx.accounts.vault.load_mut()?;
+
+    vault.direct_withdraw_enabled = value;
+
+    Ok(())
+}
+
+pub fn handle_set_user_deposit_limit(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+    let vault = &mut ctx.accounts.vault.load_mut()?;
+
+    if vault.is_shutdown {
+        return Err(ErrorCode::VaultShutdown.into());
+    }
+
+    vault.user_deposit_limit = value;
+
+    Ok(())
+}
+
+pub fn handle_set_accountant(ctx: Context<SetVaultProperty>, value: Pubkey) -> Result<()> {
+    let vault = &mut ctx.accounts.vault.load_mut()?;
+
+    if vault.is_shutdown {
+        return Err(ErrorCode::VaultShutdown.into());
+    }
+
+    vault.accountant = value;
+
+    Ok(())
+}
+
+pub fn handle_set_whitelisted_only(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+    let vault = &mut ctx.accounts.vault.load_mut()?;
+
+    if vault.is_shutdown {
+        return Err(ErrorCode::VaultShutdown.into());
+    }
+
+    vault.whitelisted_only = value;
+
+    Ok(())
+}
