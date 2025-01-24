@@ -120,8 +120,8 @@ pub fn assess_share_of_unrealised_losses(
         return Ok(0);
     }
 
-    let numerator = assets_needed * strategy_assets;
-    let losses_user_share = assets_needed - numerator / strategy_current_debt;
+    let numerator: u128 = assets_needed as u128 * strategy_assets as u128;
+    let losses_user_share = assets_needed as u128 - numerator / strategy_current_debt as u128;
 
-    Ok(losses_user_share)
+    Ok(losses_user_share as u64)
 }

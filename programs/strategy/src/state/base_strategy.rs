@@ -70,7 +70,7 @@ pub trait Strategy:
             let fee_data = self.fee_data();
 
             if fee_data.performance_fee > 0 {
-                let fees = (profit * fee_data.performance_fee) / FEE_BPS;
+                let fees = ((profit as u128 * fee_data.performance_fee as u128) / FEE_BPS as u128) as u64;
                 fee_data.fee_balance += fees;
         
                 self.set_total_assets(new_total_assets - fees);

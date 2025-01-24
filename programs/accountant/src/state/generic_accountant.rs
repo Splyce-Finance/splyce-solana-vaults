@@ -32,19 +32,19 @@ impl Accountant for GenericAccountant {
     }
 
     fn report(&self, profit: u64, _loss: u64) -> Result<(u64, u64)> {
-        let total_fees = self.performance_fee * profit / FEE_BPS;
+        let total_fees = (self.performance_fee as u128 * profit as u128 / FEE_BPS as u128) as u64;
         let total_refunds = 0;
         Ok((total_fees, total_refunds))
     }
 
     fn enter(&self, amount: u64) -> Result<u64> {
-        let fee = self.entry_fee * amount / FEE_BPS;
-        Ok(fee)
+        let fee = self.entry_fee as u128 * amount as u128 / FEE_BPS as u128;
+        Ok(fee as u64)
     }
 
     fn redeem(&self, amount: u64) -> Result<u64> {
-        let fee = self.redemption_fee * amount / FEE_BPS;
-        Ok(fee)
+        let fee = self.redemption_fee as u128 * amount as u128 / FEE_BPS as u128;
+        Ok(fee as u64)
     }
 
     fn distribute(&mut self, accounts: &Distribute) -> Result<()> {

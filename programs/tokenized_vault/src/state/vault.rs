@@ -162,17 +162,49 @@ impl Vault {
         self.total_debt + self.total_idle
     }
 
-    pub fn unlocked_shares(&self) -> Result<u64> {
+    pub fn handle_lock_shares(&mut self, shares_to_lock: u64, curr_locked_shares: u64) -> Result<()> {
+        let newly_locked_shares = curr_locked_shares + shares_to_lock;
+    
         let curr_timestamp = Clock::get()?.unix_timestamp as u64;
-        let mut curr_unlocked_shares = 0;
 
-        if self.full_profit_unlock_date > curr_timestamp {
-            curr_unlocked_shares = (self.profit_unlocking_rate * (curr_timestamp - self.last_profit_update)) / MAX_BPS_EXTENDED;
-        } else if self.full_profit_unlock_date != 0 {
-            curr_unlocked_shares = (self.profit_unlocking_rate * (self.full_profit_unlock_date - self.last_profit_update)) / MAX_BPS_EXTENDED;
+        let total_locked_shares = curr_locked_shares + newly_locked_shares;
+
+        if total_locked_shares > 0 {
+            let mut previously_locked_time: u128 = 0;
+                
+            if self.full_profit_unlock_date > curr_timestamp {
+                previously_locked_time =
+                    (curr_locked_shares as u128) * ((self.full_profit_unlock_date - curr_timestamp) as u128);
+            }
+
+            let new_profit_locking_period = (previously_locked_time
+                + (newly_locked_shares as u128) * (self.profit_max_unlock_time as u128))
+                / (total_locked_shares as u128);
+
+            self.profit_unlocking_rate =
+                ((total_locked_shares as u128) * (MAX_BPS_EXTENDED as u128) / new_profit_locking_period) as u64;
+                self.full_profit_unlock_date = curr_timestamp + (new_profit_locking_period as u64);
+                self.last_profit_update = curr_timestamp;
+        } else {
+            // NOTE: only setting this to 0 will turn in the desired effect, no need
+            // to update lastProfitUpdate or fullProfitUnlockDate
+            self.profit_unlocking_rate = 0;
         }
 
-        Ok(curr_unlocked_shares)
+        Ok(())
+    }
+
+    pub fn unlocked_shares(&self) -> Result<u64> {
+        let curr_timestamp = Clock::get()?.unix_timestamp as u64;
+        let mut curr_unlocked_shares  = 0u128;
+
+        if self.full_profit_unlock_date > curr_timestamp {
+            curr_unlocked_shares = (self.profit_unlocking_rate as u128 * (curr_timestamp - self.last_profit_update) as u128) / MAX_BPS_EXTENDED as u128;
+        } else if self.full_profit_unlock_date != 0 {
+            curr_unlocked_shares = (self.profit_unlocking_rate as u128 * (self.full_profit_unlock_date - self.last_profit_update) as u128) / MAX_BPS_EXTENDED as u128;
+        }
+
+        Ok(curr_unlocked_shares as u64)
     }
 
     pub fn total_shares(&self) -> u64 {

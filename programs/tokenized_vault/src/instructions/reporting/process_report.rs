@@ -139,37 +139,9 @@ fn handle_profit(ctx: &Context<ProcessReport>, profit: u64, fees: u64) -> Result
     let mut shares_to_lock = 0;
     if vault.profit_max_unlock_time != 0 {
         // we don't lock fee shares
-        let amount_to_lock = profit - fees;
-        shares_to_lock = vault.convert_to_shares(amount_to_lock);
+        shares_to_lock = vault.convert_to_shares(profit - fees);
 
-        let curr_locked_shares = ctx.accounts.vault_shares_token_account.amount;
-        let newly_locked_shares = curr_locked_shares + shares_to_lock;
-    
-        let curr_timestamp = get_timestamp()?;
-
-        let total_locked_shares = curr_locked_shares + newly_locked_shares;
-
-        if total_locked_shares > 0 {
-            let mut previously_locked_time: u128 = 0;
-                
-            if vault.full_profit_unlock_date > curr_timestamp {
-                previously_locked_time =
-                    (curr_locked_shares as u128) * ((vault.full_profit_unlock_date - curr_timestamp) as u128);
-            }
-
-            let new_profit_locking_period = (previously_locked_time
-                + (newly_locked_shares as u128) * (vault.profit_max_unlock_time as u128))
-                / (total_locked_shares as u128);
-
-            vault.profit_unlocking_rate =
-                ((total_locked_shares as u128) * (MAX_BPS_EXTENDED as u128) / new_profit_locking_period) as u64;
-            vault.full_profit_unlock_date = curr_timestamp + (new_profit_locking_period as u64);
-            vault.last_profit_update = curr_timestamp;
-        } else {
-            // NOTE: only setting this to 0 will turn in the desired effect, no need
-            // to update lastProfitUpdate or fullProfitUnlockDate
-            vault.profit_unlocking_rate = 0;
-        }
+        vault.handle_lock_shares(shares_to_lock, ctx.accounts.vault_shares_token_account.amount)?;
 
         // mint shares to lock
         token::mint_to(
@@ -202,8 +174,9 @@ fn handle_loss(ctx: &Context<ProcessReport>, loss: u64) -> Result<()> {
     )?;
 
     let vault = &mut ctx.accounts.vault.load_mut()?;
+    vault.handle_lock_shares(0, ctx.accounts.vault_shares_token_account.amount)?;
     vault.total_debt -= loss;
-    vault.last_profit_update = get_timestamp()?;
+    vault.total_shares -= shares_to_burn;
 
     Ok(())
 }
@@ -254,8 +227,4 @@ fn get_shares_to_burn(vault_loader: &AccountLoader<Vault>, total_locked: u64) ->
     }
 
     Ok(shares_to_burn)
-}
-
-fn get_timestamp() -> Result<u64> {
-    Ok(Clock::get()?.unix_timestamp as u64)
 }

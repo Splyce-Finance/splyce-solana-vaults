@@ -157,7 +157,7 @@ fn handle_internal<'info>(
     )?;
 
     if assets > assets_to_transfer && max_loss < MAX_BPS {
-        if assets - assets_to_transfer > (assets * max_loss) / MAX_BPS {
+        if assets as u128 - assets_to_transfer as u128 > (assets as u128 * max_loss as u128) / MAX_BPS as u128 {
             return Err(ErrorCode::TooMuchLoss.into());
         }
     }
@@ -277,8 +277,8 @@ fn validate_max_withdraw<'info>(
             let strategy_limit = strategy_utils::get_max_withdraw(&strategy_accounts.strategy_acc)?;
 
             if strategy_limit < to_withdraw - unrealised_loss {
-                let new_unrealised_loss = (unrealised_loss * strategy_limit) / to_withdraw;
-                unrealised_loss = new_unrealised_loss;
+                let new_unrealised_loss = (unrealised_loss as u128 * strategy_limit as u128) / to_withdraw as u128;
+                unrealised_loss = new_unrealised_loss as u64;
                 to_withdraw = strategy_limit + unrealised_loss;
             }
 
@@ -287,7 +287,7 @@ fn validate_max_withdraw<'info>(
             }
 
             if unrealised_loss > 0 && max_loss < MAX_BPS {
-                if loss + unrealised_loss > ((have + to_withdraw) * max_loss) / MAX_BPS {
+                if loss as u128 + unrealised_loss as u128 > ((have + to_withdraw) as u128 * max_loss as u128) / MAX_BPS as u128 {
                     break;
                 }
             }
@@ -328,7 +328,7 @@ fn withdraw_assets<'info>(
 
         for i in 0..strategies.len() {
             let strategy_acc = &strategies[i].strategy_acc;
-            let mut current_debt = strategies[i].strategy_data.deserialize::<StrategyData>()?.current_debt;
+            let mut current_debt: u64 = strategies[i].strategy_data.deserialize::<StrategyData>()?.current_debt;
 
             let mut to_withdraw = std::cmp::min(assets_needed as u64, current_debt);
             let strategy_limit = strategy_utils::get_max_withdraw(&strategy_acc)?;
@@ -341,7 +341,7 @@ fn withdraw_assets<'info>(
             if unrealised_loss_share > 0 {
                 if strategy_limit < to_withdraw - unrealised_loss_share {
                     let wanted = to_withdraw - unrealised_loss_share;
-                    unrealised_loss_share = (unrealised_loss_share * strategy_limit) / wanted;
+                    unrealised_loss_share  = ((unrealised_loss_share as u128 * strategy_limit as u128) / wanted as u128) as u64;
                     to_withdraw = strategy_limit;
                 } else {
                     to_withdraw -= unrealised_loss_share;
