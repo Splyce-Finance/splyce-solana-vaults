@@ -58,4 +58,6 @@ export const errorStrings = {
     "Error Code: DirectDepositDisabled. Error Number: 6021. Error Message: Direct deposit is disabled.",
   maxDepositReached:
     "Error Code: MaxDepositReached. Error Number: 6005. Error Message: Max deposit reached.",
+  debtHigherThanMaxDebt:
+    "Error Code: DebtHigherThanMaxDebt. Error Number: 6007. Error Message: Debt cannot be higher than max debt.",
 };

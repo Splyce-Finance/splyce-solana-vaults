@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 
-use crate::constants::{DISCRIMINATOR_LEN, VAULT_SEED, SHARES_SEED, MAX_BPS_EXTENDED};
+use crate::constants::{DISCRIMINATOR_LEN, ONE_SHARE_TOKEN, VAULT_SEED, SHARES_SEED, MAX_BPS_EXTENDED};
 
 #[account(zero_copy(unsafe))]
 #[repr(packed)]
@@ -34,6 +34,7 @@ pub struct Vault {
     pub kyc_verified_only: bool,
     pub direct_deposit_enabled: bool,
     pub whitelisted_only: bool,
+    pub direct_withdraw_enabled: bool,
 
     pub profit_max_unlock_time: u64,
     pub full_profit_unlock_date: u64,
@@ -51,6 +52,7 @@ pub struct VaultConfig {
     pub kyc_verified_only: bool,
     pub direct_deposit_enabled: bool,
     pub whitelisted_only: bool,
+    pub direct_withdraw_enabled: bool,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -103,6 +105,7 @@ impl Vault {
         self.kyc_verified_only = config.kyc_verified_only;
         self.direct_deposit_enabled = config.direct_deposit_enabled;
         self.whitelisted_only = config.whitelisted_only;
+        self.direct_withdraw_enabled = config.direct_withdraw_enabled;
 
         self.is_shutdown = false;
         self.total_debt = 0;
@@ -132,7 +135,11 @@ impl Vault {
     }
 
     pub fn max_deposit(&self) -> u64 {
-        self.deposit_limit - self.total_funds()
+        if self.total_funds() >= self.deposit_limit {
+            0
+        } else {
+            self.deposit_limit - self.total_funds()
+        }
     }
 
     pub fn convert_to_shares(&self, amount: u64) -> u64 {
@@ -206,14 +213,15 @@ impl Vault {
 
     /// Calculates the price of one share token with scaling to avoid overflow/underflow
     /// Returns the scaled share price (actual price = returned value / SCALING_FACTOR)
-    pub fn calculate_share_price(&self, one_share_token: u64) -> u64 {
+    pub fn get_share_price(&self) -> u64 {
         const SCALING_FACTOR: u128 = 1_000_000; // 10^6 for 6 decimal places of precision
+        let scaled_one_share_token = ONE_SHARE_TOKEN * SCALING_FACTOR;
+
         if self.total_shares() == 0 {
             // If there are no shares, return the scaling factor (representing 1.0)
-            (one_share_token as u128 * SCALING_FACTOR) as u64
+            scaled_one_share_token as u64
         } else {
             // Scale up total funds before division to maintain precision|
-            let scaled_one_share_token = one_share_token as u128 * SCALING_FACTOR;
             (scaled_one_share_token * self.total_funds() as u128 / self.total_shares() as u128) as u64
         }
     }

@@ -1478,7 +1478,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
         .signers([nonVerifiedUser])
         .rpc();
     } catch (err) {
-      expect(err.message).to.contain(errorStrings.maxDepositReached);
+      expect(err.message).to.contain(errorStrings.exceedDepositLimit);
     }
 
     await validateDirectDeposit({
@@ -1498,7 +1498,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
     });
   });
 
-  it.skip("Directly depositing more than strategy max debt into direct deposit enabled vault should revert", async () => {
+  it("Directly depositing more than strategy max debt into direct deposit enabled vault should revert", async () => {
     const depositAmount = 10000000001;
 
     accountantConfigAccount = await accountantProgram.account.config.fetch(
@@ -1617,7 +1617,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
         .signers([nonVerifiedUser])
         .rpc();
     } catch (err) {
-      console.log(err.message);
+      expect(err.message).to.contain(errorStrings.debtHigherThanMaxDebt);
     }
 
     await validateDirectDeposit({

@@ -10,7 +10,7 @@ use anchor_lang::prelude::*;
 pub use state::{SharesConfig, VaultConfig};
 pub use instructions::*;
 
-declare_id!("5rcNAxHYxpmNBByNs9N9Te2Crf1a2KxixZqj6fzM3fY1");
+declare_id!("8Y5ZEEnhiNdvGHbfiZVj2eSawrNrQTKd9jPEFqnnKizC");
 
 #[program]
 pub mod tokenized_vault {
@@ -26,6 +26,10 @@ pub mod tokenized_vault {
 
     pub fn init_vault_shares(ctx: Context<InitVaultShares>, index: u64, config: Box<SharesConfig>) -> Result<()> {
         handle_init_vault_shares(ctx, index, config)
+    }
+
+    pub fn init_withdraw_shares_account(ctx: Context<InitWithdrawSharesAccount>) -> Result<()> {
+        handle_init_withdraw_pool(ctx)
     }
 
     pub fn deposit(ctx: Context<Deposit>, amount: u64) -> Result<()> {
@@ -52,6 +56,31 @@ pub mod tokenized_vault {
         remaining_accounts_map: AccountsMap
     ) -> Result<()> {
         handle_redeem(ctx, shares, max_loss, remaining_accounts_map)
+    }
+
+    pub fn request_withdraw<'info>(
+        ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
+        amount: u64, 
+        max_loss: u64
+    ) -> Result<()> {
+        handle_request_withdraw(ctx, amount, max_loss)
+    }
+
+    pub fn request_redeem<'info>(
+        ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
+        shares: u64, 
+        max_loss: u64
+    ) -> Result<()> {
+        handle_request_redeem(ctx, shares, max_loss)
+    }
+
+    pub fn cancel_withdrawal_request(ctx: Context<CancelWithdrawalRequest>) -> Result<()> {
+        handle_cancel_withdrawal_request(ctx)
+    }
+
+    pub fn fulfill_withdrawal_request(ctx: Context<FulfillWithdrawalRequest>, 
+    ) -> Result<()> {
+        handle_fulfill_withdrawal_request(ctx)
     }
 
     pub fn add_strategy(ctx: Context<AddStrategy>, max_debt: u64) -> Result<()> {
@@ -91,6 +120,22 @@ pub mod tokenized_vault {
 
     pub fn set_min_total_idle(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
         handle_set_min_total_idle(ctx, value)
+    }
+
+    pub fn set_direct_withdraw_enabled(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_direct_withdraw_enabled(ctx, value)
+    }
+
+    pub fn set_user_deposit_limit(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+        handle_set_user_deposit_limit(ctx, value)
+    }
+
+    pub fn set_whitelisted_only(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_whitelisted_only(ctx, value)
+    }
+
+    pub fn set_accountant(ctx: Context<SetVaultProperty>, value: Pubkey) -> Result<()> {
+        handle_set_accountant(ctx, value)
     }
 
     pub fn process_report(ctx: Context<ProcessReport>) -> Result<()> {
