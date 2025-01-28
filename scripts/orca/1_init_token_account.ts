@@ -48,10 +48,11 @@ async function main() {
     const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
 
     // Get all configured assets for the environment
-    const assets = CONFIG.mints.assets;
-    const assetSymbols = Object.keys(assets);
+    const assets = ["BONK", "PENGU", "WIF"]; // Define fixed order of assets
+    const assetIndexToInitialize = 2; // 0 for BONK, 1 for PENGU, 2 for WIF
+    const assetName = assets[assetIndexToInitialize];
 
-    console.log(`Found ${assetSymbols.length} assets to initialize token accounts for:`, assetSymbols);
+    console.log(`Initializing token account for ${assetName} (index: ${assetIndexToInitialize})`);
 
     // First, derive the vault PDA (using index 0 as in the init script)
     const vaultIndex = 0;
@@ -63,57 +64,49 @@ async function main() {
       vaultProgram.programId
     );
 
-    // Initialize token accounts for each asset and strategy
-    for (let strategyIndex = 0; strategyIndex < assetSymbols.length; strategyIndex++) {
-      const symbol = assetSymbols[strategyIndex];
-      const assetConfig = assets[symbol];
-      const assetMint = new PublicKey(assetConfig.address);
-
-      // Derive strategy PDA for this index
-      const [strategy] = anchor.web3.PublicKey.findProgramAddressSync(
-        [vaultPDA.toBuffer(), 
-          new anchor.BN(strategyIndex).toArrayLike(Buffer, 'le', 8)
-        ],
-        strategyProgram.programId
-      );
-
-      // Calculate token account PDA
-      const [tokenAccount] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("token_account"),
-          assetMint.toBytes(),
-          strategy.toBytes(),
-        ],
-        strategyProgram.programId
-      );
-
-      console.log(`\nInitializing token account for ${symbol} (Strategy ${strategyIndex})...`);
-      console.log(`Strategy address: ${strategy.toBase58()}`);
-      console.log(`Asset mint address: ${assetMint.toBase58()}`);
-      console.log(`Token account address: ${tokenAccount.toBase58()}`);
-
-      try {
-        await strategyProgram.methods
-          .initTokenAccount()
-          .accounts({
-            strategy: strategy,
-            assetMint: assetMint,
-            signer: admin.publicKey,
-          })
-          .signers([admin])
-          .rpc();
-
-        console.log(`✓ Token account initialized successfully for ${symbol} (Strategy ${strategyIndex})`);
-      } catch (error) {
-        console.error(`Error initializing token account for ${symbol} (Strategy ${strategyIndex}):`, error);
-        // Continue with other assets even if one fails
-      }
+    // Get asset config for the specified asset
+    const assetConfig = CONFIG.mints.assets[assetName];
+    if (!assetConfig) {
+      throw new Error(`Asset ${assetName} not found in config`);
     }
+    const assetMint = new PublicKey(assetConfig.address);
+
+    // Derive strategy PDA for this index
+    const [strategy] = anchor.web3.PublicKey.findProgramAddressSync(
+      [vaultPDA.toBuffer(), 
+        new anchor.BN(assetIndexToInitialize).toArrayLike(Buffer, 'le', 8)
+      ],
+      strategyProgram.programId
+    );
+
+    // Calculate token account PDA
+    const [tokenAccount] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("token_account"),
+        assetMint.toBytes(),
+        strategy.toBytes(),
+      ],
+      strategyProgram.programId
+    );
+
+    console.log(`Strategy address: ${strategy.toBase58()}`);
+    console.log(`Asset mint address: ${assetMint.toBase58()}`);
+    console.log(`Token account address: ${tokenAccount.toBase58()}`);
+      await strategyProgram.methods
+        .initTokenAccount()
+        .accounts({
+          strategy: strategy,
+          assetMint: assetMint,
+          signer: admin.publicKey,
+        })
+        .signers([admin])
+        .rpc();
+
+
 
     // Log final summary
     console.log("\nToken Account Initialization Summary:");
-    console.log(`Total token accounts initialized: ${assetSymbols.length}`);
-    console.log(`Strategy indices used: 0 to ${assetSymbols.length - 1}`);
+    console.log(`Initialized token account for ${assetName} at index ${assetIndexToInitialize}`);
 
   } catch (error) {
     console.error("Error occurred:", error);

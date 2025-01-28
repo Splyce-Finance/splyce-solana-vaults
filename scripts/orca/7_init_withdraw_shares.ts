@@ -1,3 +1,5 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
 import * as anchor from "@coral-xyz/anchor";
 import { BN, Program } from "@coral-xyz/anchor";
 import { TokenizedVault } from "../../target/types/tokenized_vault";
@@ -28,7 +30,8 @@ async function main() {
     const secretKeyString = fs.readFileSync(secretKeyPath, "utf8");
     const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
     const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
-    const vaultIndex = 0;
+    console.log("Admin:", admin.publicKey.toBase58());
+    const vaultIndex = 3;
     // Derive vault PDA
     const [vault] = PublicKey.findProgramAddressSync(
       [

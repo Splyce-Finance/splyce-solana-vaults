@@ -8,3 +8,9 @@ test-ledger
 .env
 build/qase-report
 .DS_Store
+.env
+target_devnet
+target_mainnet
+target.zip
+target_devnet.zip
+target_mainnet.zip

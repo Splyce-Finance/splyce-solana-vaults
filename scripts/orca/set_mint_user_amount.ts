@@ -5,6 +5,7 @@ import { BN } from "@coral-xyz/anchor";
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { AccessControl } from "../../target/types/access_control";
 
 // Load environment variables
 dotenv.config();
@@ -40,6 +41,7 @@ async function main() {
         anchor.setProvider(provider);
 
         const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
+        const accessControlProgram = anchor.workspace.AccessControl as Program<AccessControl>;
 
         // Load admin keypair based on environment
         const secretKeyPath = getSecretKeyPath();
@@ -47,12 +49,22 @@ async function main() {
         const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
         const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
 
-        console.log(`Whitelisting address on ${ENV}`);
+        console.log(`Setting minimum user deposit on ${ENV}`);
         console.log("Admin Public Key:", admin.publicKey.toBase58());
         console.log("Address to whitelist:", ADDRESS_TO_WHITELIST.toBase58());
 
+        // Calculate roles PDA (VaultsAdmin role)
+        const [roles] = anchor.web3.PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("user_role"),
+                admin.publicKey.toBuffer(),
+                Buffer.from([1]) // Role::VaultsAdmin = 1
+            ],
+            accessControlProgram.programId
+        );
+
         // Calculate vault PDA (using index 0 as default)
-        const vaultIndex = 1;
+        const vaultIndex = 2; // Update this to target specific vault
         const vault = anchor.web3.PublicKey.findProgramAddressSync(
             [
                 Buffer.from("vault"),
@@ -60,10 +72,12 @@ async function main() {
             ],
             vaultProgram.programId
         )[0];
-        console.log("Vault PDA:", vault.toBase58());
 
-        // Whitelist the address
-        await vaultProgram.methods.whitelist(ADDRESS_TO_WHITELIST)
+        // Get min user deposit value from config
+        const minUserDeposit = new BN(1000000);
+
+        // Call set_min_user_deposit instruction
+        await vaultProgram.methods.setMinUserDeposit(minUserDeposit)
             .accounts({
                 vault: vault,
                 signer: admin.publicKey,
@@ -71,7 +85,7 @@ async function main() {
             .signers([admin])
             .rpc();
 
-        console.log(`Successfully whitelisted address: ${ADDRESS_TO_WHITELIST.toBase58()}`);
+        console.log(`Successfully set minimum user deposit to ${minUserDeposit.toString()}`);
 
     } catch (error) {
         console.error("Error occurred:", error);

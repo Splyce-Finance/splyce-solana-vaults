@@ -134,7 +134,7 @@
       "user_deposit_limit": "1000000000",
       "profit_max_unlock_time": "31536000",
       "kyc_verified_only": false,
-      "direct_deposit_enabled": true,
+      "direct_deposit_enabled": false,
       "whitelisted_only": true,
       "direct_withdraw_enabled": false
     }
@@ -270,11 +270,13 @@
     },
     "vault_config": {
       "deposit_limit": "20000000000",
-      "min_user_deposit": "1000000",
+      "min_user_deposit": "100000000",
+      "user_deposit_limit": "1000000000",
       "profit_max_unlock_time": "31536000",
       "kyc_verified_only": false,
-      "direct_deposit_enabled": true,
-      "whitelisted_only": true
+      "direct_deposit_enabled": false,
+      "whitelisted_only": false,
+      "direct_withdraw_enabled": false
     }
   }
 }

@@ -43,16 +43,19 @@ type Asset = {
 const TICK_ARRAYS_FILE = path.join(__dirname, 'deployment_addresses', 'currentTickArrays.json');
 const TICK_ARRAYS = JSON.parse(fs.readFileSync(TICK_ARRAYS_FILE, 'utf8'));
 
+function getSecretKeyPath(): string {
+  const ENV = process.env.CLUSTER || 'devnet';
+  const filename = ENV === 'mainnet' ? 'mainnet.json' : 'id.json';
+  return path.resolve(process.env.HOME!, '.config/solana', filename);
+}
+
 async function main() {
   try {
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
 
-    // Load admin keypair
-    const secretKeyPath = path.resolve(
-      process.env.HOME!,
-      ".config/solana/id.json"
-    );
+    // Update the secret key loading to use the new function
+    const secretKeyPath = getSecretKeyPath();
     const secretKey = Uint8Array.from(JSON.parse(fs.readFileSync(secretKeyPath, "utf8")));
     const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
 
@@ -60,8 +63,9 @@ async function main() {
     const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
     const strategyProgram = anchor.workspace.Strategy as Program<Strategy>;
 
-    const updateAmount = new BN(10_000_000).sub(new BN(7_000_000)); // Amount to update
-    
+    // const updateAmount = new anchor.BN(2300000);
+    const updateAmount = new anchor.BN(140000);
+
     const vaultIndex = 0;
 
     // Derive vault PDA
@@ -73,88 +77,88 @@ async function main() {
       vaultProgram.programId
     );
 
-    // Get assets and verify environment
-    const assets = CONFIG.mints.assets;
-    const totalWeightBps = Object.values(assets as Record<string, Asset>).reduce(
-      (sum, asset) => sum + asset.investment_config.assigned_weight_bps, 
-      0
+    // Define fixed order of assets and select which to update
+    const assets = ["BONK", "PENGU", "WIF"]; // Define fixed order of assets
+    const assetIndexToUpdate = 2; // 0 for BONK, 1 for PENGU, 2 for WIF
+    const assetSymbol = assets[assetIndexToUpdate];
+    const asset = CONFIG.mints.assets[assetSymbol];
+
+    if (!asset) {
+      throw new Error(`Asset ${assetSymbol} not found in config`);
+    }
+
+    console.log(`\nEnvironment: ${ENV}`);
+    console.log(`Updating debt for asset: ${assetSymbol}`);
+    
+    const weight = asset.investment_config.assigned_weight_bps;
+    
+    // Calculate proportional amount (assuming 10000 bps total)
+    const strategyAmount = updateAmount.mul(new BN(weight)).div(new BN(10000));
+
+    // Derive strategy PDA
+    const [strategy] = PublicKey.findProgramAddressSync(
+      [vault.toBuffer(), new BN(assetIndexToUpdate).toArrayLike(Buffer, 'le', 8)],
+      strategyProgram.programId
     );
 
-    console.log("\nDistributing debt across strategies...");
-    
-    for (let i = 0; i < Object.keys(assets).length; i++) {
-      const assetSymbol = Object.keys(assets)[i];
-      const asset = assets[assetSymbol];
-      const weight = asset.investment_config.assigned_weight_bps;
-      
-      // Calculate proportional amount
-      const strategyAmount = updateAmount.mul(new BN(weight)).div(new BN(totalWeightBps));
+    console.log(`\nUpdating debt for ${assetSymbol} (Strategy ${assetIndexToUpdate}):`);
+    console.log(`- Amount: ${strategyAmount.toString()}`);
 
-      // Derive strategy PDA
-      const [strategy] = PublicKey.findProgramAddressSync(
-        [vault.toBuffer(), new BN(i).toArrayLike(Buffer, 'le', 8)],
-        strategyProgram.programId
-      );
+    // Get strategy account to check a_to_b_for_purchase
+    const strategyAccount = await strategyProgram.account.orcaStrategy.fetch(strategy);
 
-      console.log(`\nUpdating debt for ${assetSymbol} (Strategy ${i}):`);
-      console.log(`- Amount: ${strategyAmount.toString()}`);
+    const assetMint = new PublicKey(asset.address);
+    const [strategyAssetAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
+      strategyProgram.programId
+    );
 
-      // Get strategy account to check a_to_b_for_purchase
-      const strategyAccount = await strategyProgram.account.orcaStrategy.fetch(strategy);
+    const [strategyTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("underlying"), strategy.toBuffer()],
+      strategyProgram.programId
+    );
 
-      const assetMint = new PublicKey(assets[assetSymbol].address);
-      const [strategyAssetAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from("token_account"), assetMint.toBuffer(), strategy.toBuffer()],
-        strategyProgram.programId
-      );
+    // Use the same token account ordering as in free_funds
+    const [tokenAccountA, tokenAccountB] = strategyAccount.aToBForPurchase
+      ? [strategyTokenAccount, strategyAssetAccount]
+      : [strategyAssetAccount, strategyTokenAccount];
 
-      const [strategyTokenAccount] = PublicKey.findProgramAddressSync(
-        [Buffer.from("underlying"), strategy.toBuffer()],
-        strategyProgram.programId
-      );
+    // Form remaining accounts using selling tick arrays instead of buying
+    const remainingAccounts = [
+      { pubkey: new PublicKey(CONFIG.programs.whirlpool_program), isWritable: false, isSigner: false },
+      { pubkey: new PublicKey(asset.pool.id), isWritable: true, isSigner: false },
+      { pubkey: tokenAccountA, isWritable: true, isSigner: false },
+      { pubkey: new PublicKey(asset.pool.token_vault_a), isWritable: true, isSigner: false },
+      { pubkey: tokenAccountB, isWritable: true, isSigner: false },
+      { pubkey: new PublicKey(asset.pool.token_vault_b), isWritable: true, isSigner: false },
+      ...TICK_ARRAYS[ENV].assets[assetSymbol].selling_tick_arrays.slice(0, 3).map(addr => ({
+        pubkey: new PublicKey(addr),
+        isWritable: true,
+        isSigner: false
+      })),
+      { pubkey: new PublicKey(asset.pool.oracle), isWritable: true, isSigner: false }
+    ];
 
-      // Use the same token account ordering as in free_funds
-      const [tokenAccountA, tokenAccountB] = strategyAccount.aToBForPurchase
-        ? [strategyTokenAccount, strategyAssetAccount]
-        : [strategyAssetAccount, strategyTokenAccount];
+    // Set compute unit limit
+    const computeUnitIx = ComputeBudgetProgram.setComputeUnitLimit({
+      units: 300_000,
+    });
 
-      // Form remaining accounts using selling tick arrays instead of buying
-      const remainingAccounts = [
-        { pubkey: new PublicKey(CONFIG.programs.whirlpool_program), isWritable: false, isSigner: false },
-        { pubkey: new PublicKey(asset.pool.id), isWritable: true, isSigner: false },
-        { pubkey: tokenAccountA, isWritable: true, isSigner: false },
-        { pubkey: new PublicKey(asset.pool.token_vault_a), isWritable: true, isSigner: false },
-        { pubkey: tokenAccountB, isWritable: true, isSigner: false },
-        { pubkey: new PublicKey(asset.pool.token_vault_b), isWritable: true, isSigner: false },
-        ...TICK_ARRAYS[ENV].assets[assetSymbol].selling_tick_arrays.slice(0, 3).map(addr => ({
-          pubkey: new PublicKey(addr),
-          isWritable: true,
-          isSigner: false
-        })),
-        { pubkey: new PublicKey(asset.pool.oracle), isWritable: true, isSigner: false }
-      ];
+    await vaultProgram.methods
+      .updateDebt(strategyAmount)
+      .accounts({
+        vault,
+        strategy,
+        signer: admin.publicKey,
+        underlyingMint: new PublicKey(CONFIG.mints.underlying.address),
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .remainingAccounts(remainingAccounts)
+      .preInstructions([computeUnitIx])
+      .signers([admin])
+      .rpc();
 
-      // Set compute unit limit
-      const computeUnitIx = ComputeBudgetProgram.setComputeUnitLimit({
-        units: 300_000,
-      });
-
-      await vaultProgram.methods
-        .updateDebt(strategyAmount)
-        .accounts({
-          vault,
-          strategy,
-          signer: admin.publicKey,
-          underlyingMint: new PublicKey(CONFIG.mints.underlying.address),
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .remainingAccounts(remainingAccounts)
-        .preInstructions([computeUnitIx])
-        .signers([admin])
-        .rpc();
-
-      console.log(`✓ Debt updated for ${assetSymbol}`);
-    }
+    console.log(`✓ Debt updated for ${assetSymbol}`);
 
   } catch (error) {
     console.error("Error occurred:", error);

@@ -5,6 +5,7 @@ import { BN } from "@coral-xyz/anchor";
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import { AccessControl } from "../../target/types/access_control";
 
 // Load environment variables
 dotenv.config();
@@ -18,13 +19,6 @@ const CONFIG = ADDRESSES[ENV];
 if (!CONFIG) {
   throw new Error(`No configuration found for environment: ${ENV}`);
 }
-
-// Address to be whitelisted
-// const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("FJ2B6DtzYXbk6mQhQATGV9d9fb9htasvMmnUCSbSvpW9");
-
-// const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("F7FLF8hrNk1p493dCjHHVoQJBqfzXVk917BvfAj5r4yJ");
-// const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("2fAy3iYztUAoXx6TzKZXYc1h862NL4J6XN5ShYb4sUu8"); 
-const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("5mBKbBdkLteZ1vMtBhzagKqYAWMBzUKPaNfANADyQc13"); 
 
 
 function getSecretKeyPath(): string {
@@ -40,38 +34,46 @@ async function main() {
         anchor.setProvider(provider);
 
         const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
-
+        const accessControlProgram = anchor.workspace.AccessControl as Program<AccessControl>;
+        console.log("Vault Program:", vaultProgram.programId.toBase58());
+        console.log("Access Control Program:", accessControlProgram.programId.toBase58());
         // Load admin keypair based on environment
         const secretKeyPath = getSecretKeyPath();
         const secretKeyString = fs.readFileSync(secretKeyPath, 'utf8');
         const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
         const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
 
-        console.log(`Whitelisting address on ${ENV}`);
-        console.log("Admin Public Key:", admin.publicKey.toBase58());
-        console.log("Address to whitelist:", ADDRESS_TO_WHITELIST.toBase58());
-
-        // Calculate vault PDA (using index 0 as default)
-        const vaultIndex = 1;
-        const vault = anchor.web3.PublicKey.findProgramAddressSync(
+        // Get vault PDA
+        const vaultIndex = 0;
+        const [vault] = anchor.web3.PublicKey.findProgramAddressSync(
             [
                 Buffer.from("vault"),
                 Buffer.from(new Uint8Array(new BigUint64Array([BigInt(vaultIndex)]).buffer))
             ],
             vaultProgram.programId
-        )[0];
-        console.log("Vault PDA:", vault.toBase58());
+        );
+        console.log("Vault address:", vault.toBase58());
 
-        // Whitelist the address
-        await vaultProgram.methods.whitelist(ADDRESS_TO_WHITELIST)
+        // Fetch vault data before setting whitelisted_only
+        const vaultDataBefore = await vaultProgram.account.vault.fetch(vault);
+        console.log("\nBefore setting whitelisted_only:");
+        console.log("whitelisted_only:", vaultDataBefore.whitelistedOnly);
+
+        // Call set_whitelisted_only
+        console.log("\nSetting whitelisted_only...");
+        await vaultProgram.methods
+            .setWhitelistedOnly(false)
             .accounts({
-                vault: vault,
+                vault,
                 signer: admin.publicKey,
             })
             .signers([admin])
             .rpc();
 
-        console.log(`Successfully whitelisted address: ${ADDRESS_TO_WHITELIST.toBase58()}`);
+        // Fetch vault data after setting whitelisted_only
+        const vaultDataAfter = await vaultProgram.account.vault.fetch(vault);
+        console.log("\nAfter setting whitelisted_only:");
+        console.log("whitelisted_only:", vaultDataAfter.whitelistedOnly);
 
     } catch (error) {
         console.error("Error occurred:", error);

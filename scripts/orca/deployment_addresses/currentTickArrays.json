@@ -1,40 +1,40 @@
 {
-  "devnet": {
+  "mainnet": {
     "assets": {
-      "SOL": {
+      "BONK": {
         "buying_tick_arrays": [
-          "3aBJJLAR3QxGcGsesNXeW3f64Rv3TckF7EQ6sXtAuvGM",
-          "7knZZ461yySGbSEHeBUwEpg3VtAkQy8B9tp78RGgyUHE",
-          "CpoSFo3ajrizueggtJr2ZjvYgdtkgugXtvhqcwkyCkKP"
+          "3PPzT57LeR33sahQNKNPn3Zz7xaBJ3GvriEYXZCuBaUE",
+          "5Q6z9GcYYrdp6QtrDcBkCv8MZxsxT8WXcSD8CDcH3ymP",
+          "C7PDHFsHepX2eVgGNiwkBdh3hXaEUVZvqcyNYsmKLqFb"
         ],
         "selling_tick_arrays": [
-          "3aBJJLAR3QxGcGsesNXeW3f64Rv3TckF7EQ6sXtAuvGM",
-          "A1vrG379E5ttoaWmyQBiunsMdyrpoUp7mSQwu8DgLcip",
-          "6457MVShLFLePXXpyj2uwL2P23wkraT4QnP5u5orTRDU"
+          "3PPzT57LeR33sahQNKNPn3Zz7xaBJ3GvriEYXZCuBaUE",
+          "B75fBdZrMCXjGSgvAr6pDwv5ZUyR5dbZVQ3cu7SS3VFP",
+          "AgdM8Go2TNSbmACjxG5m5Gem45eu9vG6u752qwGjC6Ec"
         ]
       },
-      "USDT": {
+      "PENGU": {
         "buying_tick_arrays": [
-          "EBHQcAfc4ncUkCxgGYxEWCSu744qFaBEBmyv3U9ajNzX",
-          "8Eh57hMUNffNpQPb4K2nQZFPguiYgnCSi2ehvtmuE2PA",
-          "FpGrraM6rZN1AkxMTyJrASda4q6BSdGJgqj544S1vcjL"
+          "DSg23ei74BfkokGn5pyZE6FQRxVh5fbXFQ6Pk5U4JACv",
+          "6J91prWMk3u95Xc3MtmGax4vnGZcwpBnive61wm71m6w",
+          "7Tb2JDPmciKC3K84YFAKPCRMHMBteLydXN1Qm9LWKMUJ"
         ],
         "selling_tick_arrays": [
-          "EBHQcAfc4ncUkCxgGYxEWCSu744qFaBEBmyv3U9ajNzX",
-          "4cCMLotR9ATrdxznfA6uJjySPJ96yEqzqUejxVxHrV9x",
-          "HZUZhi5xeybSiKJqBu1XXRh4y9azNLNSdgQ7owyarzQ"
+          "DSg23ei74BfkokGn5pyZE6FQRxVh5fbXFQ6Pk5U4JACv",
+          "GpQEB8cpcGNAB8EPi8aAnWtzZ8uXcTk1AbtNgYV4aqtQ",
+          "9TMZ5CyrvXa6YpPskFsgJxg8RJoHNEsXE8EtzK39ykta"
         ]
       },
-      "SAMO": {
+      "WIF": {
         "buying_tick_arrays": [
-          "9H4aVdyXbnnmbSJLjYahvZzrgdHyWVMq8i1v1fD7jqBt",
-          "G13PKFAkn7rLHVT1fGbLPKAQFiMe6GiRKZ6e8ipxcn9q",
-          "76ntKkVqoLqakqHb6TdkWKuD9kNv2JbPL3k6EHudWHxd"
+          "C3AnpNzNid5dt6qsBg2516vTTKp87wVw7DdnRTwecKfL",
+          "3Z4k6Pj8XNg2GpYsw4GbvwhPaagcm2gLC545W5LPUC8B",
+          "61stFhNGiZvmfZeTB1wfSnrQanH7mzhyLk3xXF221CGo"
         ],
         "selling_tick_arrays": [
-          "9H4aVdyXbnnmbSJLjYahvZzrgdHyWVMq8i1v1fD7jqBt",
-          "B6n4APQbms1BdY5Ev1V9hjgz3NC94f7ws8qG9e3bpedE",
-          "9AQxHkiVJqoXRUvP9FpoXUcZ1HCEHpJHp8eZVRocK7Wx"
+          "C3AnpNzNid5dt6qsBg2516vTTKp87wVw7DdnRTwecKfL",
+          "HwXApimTPcnw7JSqNxT5PcpUmqQ1bmfdbQZPp1BWq3ro",
+          "EpMibts1jZaTHYXEbR2xyFTgxwAs28sRQcma4rzuHge5"
         ]
       }
     }
