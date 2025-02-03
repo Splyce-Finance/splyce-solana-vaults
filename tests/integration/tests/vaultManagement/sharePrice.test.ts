@@ -1333,7 +1333,7 @@ describe("Vault Management: Share Price Tests", () => {
         .rpc();
     });
     await vaultProgram.removeEventListener(listener);
-    const sharePriceAfter = 1000000;
+    const sharePriceAfter = event.sharePrice / 1000000;
     console.log("Share Price After: ", event.sharePrice / 1000000);
     expect(sharePriceAfter).to.be.lessThan(sharePriceBefore);
   });
