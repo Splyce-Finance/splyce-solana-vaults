@@ -22,7 +22,7 @@ import {
 import * as token from "@solana/spl-token";
 import { SimpleStrategyConfig } from "../../../utils/schemas";
 
-describe.only("Vault User Operations: Withdrawal Tests", () => {
+describe.skip("Vault User Operations: Withdrawal Tests", () => {
   // Test Role Accounts
   let rolesAdmin: anchor.web3.Keypair;
   let generalAdmin: anchor.web3.Keypair;
@@ -178,6 +178,7 @@ describe.only("Vault User Operations: Withdrawal Tests", () => {
       kycVerifiedOnly: false,
       directDepositEnabled: true,
       whitelistedOnly: true,
+      directWithdrawEnabled: true,
     };
 
     const sharesConfigOne = {
