@@ -1,4 +1,7 @@
 use anchor_lang::prelude::*;
+use strategy::Withdraw;
+
+use crate::state::WithdrawRequest;
 
 #[error_code]
 pub enum ErrorCode {
@@ -76,4 +79,10 @@ pub enum ErrorCode {
 
     #[msg("Serialization error")]
     SerializationError,
+
+    #[msg("Withdraw requests are disabled")]
+    WithdrawRequestsDisabled,
+
+    #[msg("Direct withdraw is disabled")]
+    DirectWithdrawDisabled,
 }
