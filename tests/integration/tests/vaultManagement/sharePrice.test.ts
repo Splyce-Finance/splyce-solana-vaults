@@ -946,8 +946,7 @@ describe("Vault Management: Share Price Tests", () => {
     expect(sharePriceAfter).to.be.lessThan(sharePriceBefore);
   });
 
-  // Actual Issue - https://desync-labs.atlassian.net/browse/VLT-332
-  it.skip("Simple Strategy Vault: Reporting Profit for vault with 0 performance fee successfully increases share price", async () => {
+  it("Simple Strategy Vault: Reporting Profit for vault with 0 performance fee successfully increases share price", async () => {
     const depositAmount = 10_000000000;
 
     accountantConfigAccount = await accountantProgram.account.config.fetch(
