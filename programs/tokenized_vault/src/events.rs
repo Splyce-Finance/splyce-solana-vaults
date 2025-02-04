@@ -76,6 +76,7 @@ pub struct VaultWithdrawlEvent {
 pub struct VaultUpdateDepositLimitEvent {
     pub vault_key: Pubkey, 
     pub new_limit: u64,
+    pub timestamp: i64,
 }
 
 #[event]
@@ -95,6 +96,7 @@ pub struct UpdatedCurrentDebtForStrategyEvent {
 
 #[event]
 pub struct StrategyReportedEvent {
+    pub vault_key: Pubkey,
     pub strategy_key: Pubkey,
     pub gain: u64,
     pub loss: u64,
@@ -122,6 +124,7 @@ pub struct WithdrawalRequestedEvent {
     pub max_loss: u64,
     pub fee_shares: u64,
     pub index: u64,
+    pub timestamp: i64,
 }
 
 #[event]
@@ -129,6 +132,7 @@ pub struct WithdrawalRequestCanceledEvent {
     pub user: Pubkey,
     pub vault: Pubkey,
     pub index: u64,
+    pub timestamp: i64,
 }
 
 #[event]
@@ -137,4 +141,61 @@ pub struct WithdrawalRequestFulfilledEvent {
     pub vault: Pubkey,
     pub amount: u64,
     pub index: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultUpdateMinUserDepositEvent {
+    pub vault_key: Pubkey,
+    pub new_min_user_deposit: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultUpdateProfitMaxUnlockTimeEvent {
+    pub vault_key: Pubkey,
+    pub new_profit_max_unlock_time: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultUpdateMinTotalIdleEvent {
+    pub vault_key: Pubkey,
+    pub new_min_total_idle: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultUpdateDirectWithdrawEnabledEvent {
+    pub vault_key: Pubkey,
+    pub new_direct_withdraw_enabled: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultUpdateUserDepositLimitEvent {
+    pub vault_key: Pubkey,
+    pub new_user_deposit_limit: u64,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultUpdateAccountantEvent {
+    pub vault_key: Pubkey,
+    pub new_accountant: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultUpdateWhitelistedOnlyEvent {
+    pub vault_key: Pubkey,
+    pub new_whitelisted_only: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct VaultRemoveStrategyEvent {
+    pub vault_key: Pubkey,
+    pub strategy_key: Pubkey,
+    pub removed_at: i64,
 }

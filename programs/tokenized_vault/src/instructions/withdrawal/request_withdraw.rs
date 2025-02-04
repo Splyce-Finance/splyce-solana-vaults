@@ -136,6 +136,7 @@ fn handle_internal<'info>(
         max_loss,
         fee_shares,
         index: ctx.accounts.withdraw_request.index,
+        timestamp: Clock::get()?.unix_timestamp,
     });
 
     Ok(())
