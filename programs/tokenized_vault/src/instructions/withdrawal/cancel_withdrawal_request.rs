@@ -58,6 +58,7 @@ pub fn handle_cancel_withdrawal_request(
         vault: ctx.accounts.withdraw_request.vault,
         user: ctx.accounts.withdraw_request.user,
         index: ctx.accounts.withdraw_request.index,
+        timestamp: Clock::get()?.unix_timestamp,
     });
 
     Ok(())

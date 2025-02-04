@@ -103,6 +103,7 @@ pub fn handle_process_report(ctx: Context<ProcessReport>) -> Result<()> {
     msg!("share_price: {}", share_price);
 
     emit!(StrategyReportedEvent {
+        vault_key: ctx.accounts.vault.key(),
         strategy_key: strategy.key(),
         gain: profit,
         loss,
@@ -204,6 +205,7 @@ fn handle_loss(ctx: &Context<ProcessReport>, loss: u64) -> Result<()> {
     let vault = &mut ctx.accounts.vault.load_mut()?;
     vault.total_debt -= loss;
     vault.last_profit_update = get_timestamp()?;
+    vault.total_shares -= shares_to_burn;
 
     Ok(())
 }
