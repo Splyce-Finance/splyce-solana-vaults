@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("5ftd8XcvMXHFquqBFKP7BgdzLnxPodtnoowB3GKn5528");
+declare_id!("Dj9DcwRzLK9yXz5xdAeRFmp2EjpFYZ3En5N8ApfxpCfU");
 
 #[program]
 pub mod deposit_limit {

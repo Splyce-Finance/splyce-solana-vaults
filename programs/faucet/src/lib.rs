@@ -6,7 +6,7 @@ pub mod error;
 
 pub use instructions::*;
 
-declare_id!("sZyuAVwfJvgcopZtHq5y5wQ488qaWkSqdX1xPKsTYeX");
+declare_id!("C3dz2V23uqX5br1rdA2xmahNVMPribqCLPU9NYxrA71t");
 
 #[program]
 pub mod faucet {

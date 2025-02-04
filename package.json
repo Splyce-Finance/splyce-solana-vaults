@@ -50,7 +50,8 @@
     "11_fullfill_request_devnet": "ANCHOR_PROVIDER_URL=\"https://api.devnet.solana.com\" ANCHOR_WALLET=~/.config/solana/id.json npx ts-node scripts/orca/11_fullfill_request.ts",
     "10_deposit_update_to_free_funds_devnet": "ANCHOR_PROVIDER_URL=\"https://api.devnet.solana.com\" ANCHOR_WALLET=~/.config/solana/id.json npx ts-node scripts/orca/10_deposit_update_to_free_funds.ts",
     "9_report_and_process_devnet": "ANCHOR_PROVIDER_URL=\"https://api.devnet.solana.com\" ANCHOR_WALLET=~/.config/solana/id.json npx ts-node scripts/orca/9_report_and_process.ts",
-
+    "update_vault_properties_devnet": "ANCHOR_PROVIDER_URL=\"https://api.devnet.solana.com\" ANCHOR_WALLET=~/.config/solana/id.json npx ts-node scripts/orca/update_vault_properties.ts",
+    "transfer_strategy_management_devnet": "ANCHOR_PROVIDER_URL=\"https://api.devnet.solana.com\" ANCHOR_WALLET=~/.config/solana/id.json npx ts-node scripts/orca/transfer_strategy_management.ts",
     "extend_ALT": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/ALT/extend_ALT.ts",
     "init_scripts": "ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/0_init_orca_strategy.ts && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/1_init_token_account.ts && ANCHOR_PROVIDER_URL=\"https://api.mainnet-beta.solana.com\" ANCHOR_WALLET=~/.config/solana/mainnet.json npx ts-node scripts/orca/2_init_invest_tracker.ts",
 

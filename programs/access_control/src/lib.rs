@@ -8,7 +8,7 @@ pub mod utils;
 
 use crate::instructions::*;
 
-declare_id!("G4R4QqWTLGoNCs1DRFpSHxPAJohe5obP8n8RVrHBMH33");
+declare_id!("ExUZnBBEJKDi7DiyktBiET6M3ksX7qpGwyp4gVQZ9h8u");
 
 #[program]
 pub mod access_control {
