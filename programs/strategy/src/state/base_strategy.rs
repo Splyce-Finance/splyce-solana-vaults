@@ -63,7 +63,7 @@ pub trait Strategy:
     fn report_loss<'info>(&mut self, accounts: &ReportLoss<'info>, remaining: &[AccountInfo<'info>], loss: u64) -> Result<()>;
     fn report<'info>(&mut self, accounts: &Report<'info>, remaining: &[AccountInfo<'info>]) -> Result<()> {
         let old_total_assets = self.total_assets();
-        let new_total_assets = self.harvest_and_report(accounts, remaining)?;
+        let mut new_total_assets = self.harvest_and_report(accounts, remaining)?;
 
         if new_total_assets > old_total_assets {
             let profit = new_total_assets - old_total_assets;
@@ -72,13 +72,11 @@ pub trait Strategy:
             if fee_data.performance_fee > 0 {
                 let fees = (profit * fee_data.performance_fee) / FEE_BPS;
                 fee_data.fee_balance += fees;
-        
-                self.set_total_assets(new_total_assets - fees);
+                new_total_assets -= fees;
             }
-        } else {
-            self.set_total_assets(new_total_assets);
         }
 
+        self.set_total_assets(new_total_assets);
         Ok(())
     }
 }
