@@ -5,7 +5,16 @@ use access_control::{
     state::{UserRole, Role}
 };
 
-use crate::events::VaultUpdateDepositLimitEvent;
+use crate::events::{
+    VaultUpdateDepositLimitEvent,
+    VaultUpdateMinUserDepositEvent,
+    VaultUpdateProfitMaxUnlockTimeEvent,
+    VaultUpdateMinTotalIdleEvent,
+    VaultUpdateDirectWithdrawEnabledEvent,
+    VaultUpdateUserDepositLimitEvent,
+    VaultUpdateAccountantEvent,
+    VaultUpdateWhitelistedOnlyEvent,
+};
 use crate::errors::ErrorCode;
 use crate::state::Vault;
 
@@ -43,6 +52,7 @@ pub fn handle_set_deposit_limit(ctx: Context<SetVaultProperty>, amount: u64) -> 
     emit!(VaultUpdateDepositLimitEvent {
         vault_key: vault.key,
         new_limit: amount,
+        timestamp: Clock::get()?.unix_timestamp,
     });
 
     Ok(())
@@ -57,6 +67,12 @@ pub fn handle_set_min_user_deposit(ctx: Context<SetVaultProperty>, value: u64) -
 
     vault.min_user_deposit = value;
 
+    emit!(VaultUpdateMinUserDepositEvent {
+        vault_key: vault.key,
+        new_min_user_deposit: value,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+
     Ok(())
 }
 
@@ -68,6 +84,12 @@ pub fn handle_set_profit_max_unlock_time(ctx: Context<SetVaultProperty>, value: 
     }
 
     vault.profit_max_unlock_time = value;
+
+    emit!(VaultUpdateProfitMaxUnlockTimeEvent {
+        vault_key: vault.key,
+        new_profit_max_unlock_time: value,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
 
     Ok(())
 }
@@ -81,6 +103,12 @@ pub fn handle_set_min_total_idle(ctx: Context<SetVaultProperty>, value: u64) -> 
 
     vault.minimum_total_idle = value;
 
+    emit!(VaultUpdateMinTotalIdleEvent {
+        vault_key: vault.key,
+        new_min_total_idle: value,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+
     Ok(())
 }
 
@@ -88,6 +116,12 @@ pub fn handle_set_direct_withdraw_enabled(ctx: Context<SetVaultProperty>, value:
     let vault = &mut ctx.accounts.vault.load_mut()?;
 
     vault.direct_withdraw_enabled = value;
+
+    emit!(VaultUpdateDirectWithdrawEnabledEvent {
+        vault_key: vault.key,
+        new_direct_withdraw_enabled: value,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
 
     Ok(())
 }
@@ -101,6 +135,12 @@ pub fn handle_set_user_deposit_limit(ctx: Context<SetVaultProperty>, value: u64)
 
     vault.user_deposit_limit = value;
 
+    emit!(VaultUpdateUserDepositLimitEvent {
+        vault_key: vault.key,
+        new_user_deposit_limit: value,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+
     Ok(())
 }
 
@@ -113,6 +153,12 @@ pub fn handle_set_accountant(ctx: Context<SetVaultProperty>, value: Pubkey) -> R
 
     vault.accountant = value;
 
+    emit!(VaultUpdateAccountantEvent {
+        vault_key: vault.key,
+        new_accountant: value,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
+
     Ok(())
 }
 
@@ -124,6 +170,12 @@ pub fn handle_set_whitelisted_only(ctx: Context<SetVaultProperty>, value: bool) 
     }
 
     vault.whitelisted_only = value;
+
+    emit!(VaultUpdateWhitelistedOnlyEvent {
+        vault_key: vault.key,
+        new_whitelisted_only: value,
+        timestamp: Clock::get()?.unix_timestamp,
+    });
 
     Ok(())
 }

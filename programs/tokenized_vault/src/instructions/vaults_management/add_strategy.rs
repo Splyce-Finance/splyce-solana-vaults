@@ -10,6 +10,7 @@ use crate::errors::ErrorCode;
 use crate::constants::STRATEGY_DATA_SEED;
 use crate::state::{ StrategyData, Vault};
 use crate::utils::strategy as strategy_utils;
+use crate::events::VaultAddStrategyEvent;
 
 #[derive(Accounts)]
 pub struct AddStrategy<'info> {
@@ -65,5 +66,15 @@ pub fn handle_add_strategy(ctx: Context<AddStrategy>, max_debt: u64) -> Result<(
     let vault = &mut ctx.accounts.vault.load_mut()?;
     vault.strategies_amount += 1;
     
+
+    emit!(VaultAddStrategyEvent {
+        vault_key: ctx.accounts.vault.key(),
+        strategy_key: ctx.accounts.strategy.key(),
+        current_debt: 0, 
+        max_debt,
+        last_update: Clock::get()?.unix_timestamp,
+        is_active: true,
+    });
+
     Ok(())
 }
