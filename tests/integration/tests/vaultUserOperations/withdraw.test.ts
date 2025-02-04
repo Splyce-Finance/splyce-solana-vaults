@@ -17,73 +17,35 @@ import {
   airdrop,
   initializeSimpleStrategy,
   initializeVault,
+  initNextAccountant,
+  setUpTestUser,
+  setUpTestVaultWithSingleStrategy,
   validateDeposit,
+  validateUserTokenAndShareData,
+  validateVaultTokenAndShareData,
 } from "../../../utils/helpers";
 import * as token from "@solana/spl-token";
 import { SimpleStrategyConfig } from "../../../utils/schemas";
 
-describe.skip("Vault User Operations: Withdrawal Tests", () => {
-  // Test Role Accounts
+describe.only("Vault User Operations: Withdrawal Tests", () => {
   let rolesAdmin: anchor.web3.Keypair;
   let generalAdmin: anchor.web3.Keypair;
-  let whitelistedUser: anchor.web3.Keypair;
 
-  // Accountant vars
   let accountantConfig: anchor.web3.PublicKey;
-  let accountantConfigAccount: { nextAccountantIndex: BN };
-  const accountantType = { generic: {} };
 
-  // Common underlying mint and owner
   let underlyingMint: anchor.web3.PublicKey;
   let underlyingMintOwner: anchor.web3.Keypair;
 
-  // User token and shares accounts
-  let whitelistedUserTokenAccount: anchor.web3.PublicKey;
-  let whitelistedUserSharesAccountVaultOne: anchor.web3.PublicKey;
-  let whitelistedUserCurrentAmount: number;
-  let whitelistedUserSharesCurrentAmountVaultOne: number;
-
-  // First Test Vault
-  let vaultOne: anchor.web3.PublicKey;
-  let sharesMintOne: anchor.web3.PublicKey;
-  let metadataAccountOne: anchor.web3.PublicKey;
-  let vaultTokenAccountOne: anchor.web3.PublicKey;
-  let strategyOne: anchor.web3.PublicKey;
-  let strategyTokenAccountOne: anchor.web3.PublicKey;
-  let accountantOne: anchor.web3.PublicKey;
-  let feeRecipientOne: anchor.web3.Keypair;
-  let feeRecipientSharesAccountOne: anchor.web3.PublicKey;
-  let feeRecipientTokenAccountOne: anchor.web3.PublicKey;
-
-  let vaultOneTokenAccountCurrentAmount: number;
-  let vaultOneTotalIdleCurrentAmount: number;
-  let vaultOneTotalSharesCurrentAmount: number;
-
   before(async () => {
     console.log("-------Before Step Started-------");
-    // Generate Test Role Accounts
     rolesAdmin = configOwner;
     generalAdmin = anchor.web3.Keypair.generate();
-    whitelistedUser = anchor.web3.Keypair.generate();
-    feeRecipientOne = anchor.web3.Keypair.generate();
 
-    // Airdrop to all accounts
-    const publicKeysList = [
-      generalAdmin.publicKey,
-      whitelistedUser.publicKey,
-      feeRecipientOne.publicKey,
-    ];
-    for (const publicKey of publicKeysList) {
-      await airdrop({
-        connection,
-        publicKey,
-        amount: 10e9,
-      });
-    }
-
-    console.log(
-      "Generate keypairs and airdrop to all test accounts successfully"
-    );
+    await airdrop({
+      connection,
+      publicKey: generalAdmin.publicKey,
+      amount: 10e9,
+    });
 
     // Create common underlying mint account and set underlying mint owner
     underlyingMintOwner = configOwner;
@@ -138,192 +100,97 @@ describe.skip("Vault User Operations: Withdrawal Tests", () => {
 
     console.log("Set all roles successfully");
 
-    // Set up accountant config
+    // Set up global accountant config
     accountantConfig = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("config")],
       accountantProgram.programId
     )[0];
 
-    // Set up test vaults and strategies
-    // Vault One
-    accountantConfigAccount = await accountantProgram.account.config.fetch(
-      accountantConfig
-    );
-    accountantOne = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from(
-          new Uint8Array(
-            new BigUint64Array([
-              BigInt(accountantConfigAccount.nextAccountantIndex.toNumber()),
-            ]).buffer
-          )
-        ),
-      ],
-      accountantProgram.programId
-    )[0];
+    console.log("-------Before Step Finished-------");
+  });
 
-    await accountantProgram.methods
-      .initAccountant(accountantType)
-      .accounts({
-        signer: generalAdmin.publicKey,
-      })
-      .signers([generalAdmin])
-      .rpc();
+  it("Withdrawing partially from the vault with fully non-allocted funds is successful", async () => {
+    const userMintAmount = 2000000000;
+    const depositAmount = 100000000;
+    const withdrawalAmount = 50000000;
+
+    const accountant = await initNextAccountant({
+      accountantConfig,
+      admin: generalAdmin,
+    });
 
     const vaultConfig = {
       depositLimit: new BN(100000000000),
       minUserDeposit: new BN(100000000),
-      accountant: accountantOne,
+      accountant: accountant,
       profitMaxUnlockTime: new BN(0),
       kycVerifiedOnly: false,
       directDepositEnabled: true,
-      whitelistedOnly: true,
+      whitelistedOnly: false,
       directWithdrawEnabled: true,
     };
 
-    const sharesConfigOne = {
-      name: "USDC",
-      symbol: "USDC",
-      uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
-    };
-
-    [vaultOne, sharesMintOne, metadataAccountOne, vaultTokenAccountOne] =
-      await initializeVault({
-        vaultProgram,
-        underlyingMint,
-        signer: generalAdmin,
-        vaultConfig: vaultConfig,
-        sharesConfig: sharesConfigOne,
-      });
-
-    feeRecipientSharesAccountOne = await token.createAccount(
-      provider.connection,
-      feeRecipientOne,
-      sharesMintOne,
-      feeRecipientOne.publicKey
-    );
-    feeRecipientTokenAccountOne = await token.createAccount(
-      provider.connection,
-      feeRecipientOne,
-      underlyingMint,
-      feeRecipientOne.publicKey
-    );
-
-    const strategyConfigOne = new SimpleStrategyConfig({
+    const strategyConfig = new SimpleStrategyConfig({
       depositLimit: new BN(100000000000),
       performanceFee: new BN(1000),
       feeManager: generalAdmin.publicKey,
     });
 
-    [strategyOne, strategyTokenAccountOne] = await initializeSimpleStrategy({
-      strategyProgram,
-      vault: vaultOne,
-      underlyingMint,
-      signer: generalAdmin,
-      config: strategyConfigOne,
+    const {
+      vault,
+      strategy,
+      vaultTokenAccount,
+      strategyTokenAccount,
+      sharesMint,
+    } = await setUpTestVaultWithSingleStrategy({
+      admin: generalAdmin,
+      accountant: accountant,
+      vaultConfig: vaultConfig,
+      underlyingMint: underlyingMint,
+      strategyConfig: strategyConfig,
+      strategyMaxDebt: 100000000000,
     });
 
-    await vaultProgram.methods
-      .addStrategy(new BN(100000000000))
-      .accounts({
-        vault: vaultOne,
-        strategy: strategyOne,
-        signer: generalAdmin.publicKey,
-      })
-      .signers([generalAdmin])
-      .rpc();
-
-    console.log("Initialized vaults and strategies successfully");
-
-    // Whitelist users
-    await vaultProgram.methods
-      .whitelist(whitelistedUser.publicKey)
-      .accounts({
-        vault: vaultOne,
-        signer: generalAdmin.publicKey,
-      })
-      .signers([generalAdmin])
-      .rpc();
-
-    console.log("Whitelisted users successfully");
-
-    // Create token accounts and mint underlying tokens
-    await accountantProgram.methods
-      .initTokenAccount()
-      .accounts({
-        accountant: accountantOne,
-        signer: generalAdmin.publicKey,
-        mint: sharesMintOne,
-      })
-      .signers([generalAdmin])
-      .rpc();
-
-    await accountantProgram.methods
-      .initTokenAccount()
-      .accounts({
-        accountant: accountantOne,
-        signer: generalAdmin.publicKey,
-        mint: underlyingMint,
-      })
-      .signers([generalAdmin])
-      .rpc();
-
-    vaultOneTokenAccountCurrentAmount = 0;
-    vaultOneTotalIdleCurrentAmount = 0;
-    vaultOneTotalSharesCurrentAmount = 0;
-
-    whitelistedUserTokenAccount = await token.createAccount(
-      connection,
-      whitelistedUser,
+    const { user, userTokenAccount } = await setUpTestUser({
       underlyingMint,
-      whitelistedUser.publicKey
-    );
-
-    whitelistedUserSharesAccountVaultOne = await token.createAccount(
-      provider.connection,
-      whitelistedUser,
-      sharesMintOne,
-      whitelistedUser.publicKey
-    );
-
-    console.log("Token accounts and shares accounts created successfully");
-
-    const mintAmount = 200000000000;
-
-    await token.mintTo(
-      connection,
       underlyingMintOwner,
-      underlyingMint,
-      whitelistedUserTokenAccount,
-      underlyingMintOwner.publicKey,
-      mintAmount
+      mintAmount: 2000000000,
+    });
+
+    const userSharesAccount = await token.createAccount(
+      provider.connection,
+      user,
+      sharesMint,
+      user.publicKey
     );
 
-    whitelistedUserCurrentAmount = mintAmount;
-    whitelistedUserSharesCurrentAmountVaultOne = 0;
-
-    console.log("Minted underlying token to all users successfully");
-
-    console.log("-------Before Step Finished-------");
-  });
-
-  it("Withdrawing more than available shares in the vault should revert", async () => {
-    const depositAmount = 100000000;
-    const withdrawalAmount = 100000001;
+    // Set up initial expected values
+    let userCurrentTokenAmount = userMintAmount;
+    let userSharesCurrentAmount = 0;
+    let vaultTokenAccountCurrentAmount = 0;
+    let vaultTotalSharesCurrentAmount = 0;
+    let vaultTotalIdleCurrentAmount = 0;
+    let vaultTotalDebtCurrentAmount = 0;
 
     await vaultProgram.methods
       .deposit(new BN(depositAmount))
       .accounts({
-        vault: vaultOne,
-        accountant: accountantOne,
-        user: whitelistedUser.publicKey,
-        userTokenAccount: whitelistedUserTokenAccount,
-        userSharesAccount: whitelistedUserSharesAccountVaultOne,
+        vault: vault,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
         underlyingMint: underlyingMint,
         tokenProgram: token.TOKEN_PROGRAM_ID,
       })
-      .signers([whitelistedUser])
+      .signers([user])
       .rpc();
+
+    userCurrentTokenAmount -= depositAmount;
+    userSharesCurrentAmount += depositAmount;
+    vaultTokenAccountCurrentAmount += depositAmount;
+    vaultTotalSharesCurrentAmount += depositAmount;
+    vaultTotalIdleCurrentAmount += depositAmount;
 
     const remainingAccountsMap = {
       accountsMap: [
@@ -337,11 +204,623 @@ describe.skip("Vault User Operations: Withdrawal Tests", () => {
     };
 
     const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("strategy_data"),
-        vaultOne.toBuffer(),
-        strategyOne.toBuffer(),
+      [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+      vaultProgram.programId
+    )[0];
+
+    await vaultProgram.methods
+      .withdraw(new BN(withdrawalAmount), new BN(0), remainingAccountsMap)
+      .accounts({
+        vault: vault,
+        underlyingMint,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .remainingAccounts([
+        { pubkey: strategy, isWritable: true, isSigner: false },
+        {
+          pubkey: strategyTokenAccount,
+          isWritable: true,
+          isSigner: false,
+        },
+        { pubkey: strategyData, isWritable: true, isSigner: false },
+      ])
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount += withdrawalAmount;
+    userSharesCurrentAmount -= withdrawalAmount;
+    vaultTokenAccountCurrentAmount -= withdrawalAmount;
+    vaultTotalSharesCurrentAmount -= withdrawalAmount;
+    vaultTotalIdleCurrentAmount -= withdrawalAmount;
+
+    await validateUserTokenAndShareData({
+      userTokenAccount,
+      userSharesAccount,
+      userCurrentTokenAmount,
+      userSharesCurrentAmount,
+    });
+
+    await validateVaultTokenAndShareData({
+      vaultTokenAccount,
+      vault,
+      vaultTokenAccountCurrentAmount,
+      vaultTotalDebtCurrentAmount,
+      vaultTotalIdleCurrentAmount,
+      vaultTotalSharesCurrentAmount,
+    });
+  });
+
+  it("Withdrawing full amount from the vault with fully non-allocated funds is successful", async () => {
+    const userMintAmount = 2000000000;
+    const depositAmount = 100000000;
+    const withdrawalAmount = 100000000;
+
+    const accountant = await initNextAccountant({
+      accountantConfig,
+      admin: generalAdmin,
+    });
+
+    const vaultConfig = {
+      depositLimit: new BN(100000000000),
+      minUserDeposit: new BN(100000000),
+      accountant: accountant,
+      profitMaxUnlockTime: new BN(0),
+      kycVerifiedOnly: false,
+      directDepositEnabled: true,
+      whitelistedOnly: false,
+      directWithdrawEnabled: true,
+    };
+
+    const strategyConfig = new SimpleStrategyConfig({
+      depositLimit: new BN(100000000000),
+      performanceFee: new BN(1000),
+      feeManager: generalAdmin.publicKey,
+    });
+
+    const {
+      vault,
+      strategy,
+      vaultTokenAccount,
+      strategyTokenAccount,
+      sharesMint,
+    } = await setUpTestVaultWithSingleStrategy({
+      admin: generalAdmin,
+      accountant: accountant,
+      vaultConfig: vaultConfig,
+      underlyingMint: underlyingMint,
+      strategyConfig: strategyConfig,
+      strategyMaxDebt: 100000000000,
+    });
+
+    const { user, userTokenAccount } = await setUpTestUser({
+      underlyingMint,
+      underlyingMintOwner,
+      mintAmount: 2000000000,
+    });
+
+    const userSharesAccount = await token.createAccount(
+      provider.connection,
+      user,
+      sharesMint,
+      user.publicKey
+    );
+
+    // Set up initial expected values
+    let userCurrentTokenAmount = userMintAmount;
+    let userSharesCurrentAmount = 0;
+    let vaultTokenAccountCurrentAmount = 0;
+    let vaultTotalSharesCurrentAmount = 0;
+    let vaultTotalIdleCurrentAmount = 0;
+    let vaultTotalDebtCurrentAmount = 0;
+
+    await vaultProgram.methods
+      .deposit(new BN(depositAmount))
+      .accounts({
+        vault: vault,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        underlyingMint: underlyingMint,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount -= depositAmount;
+    userSharesCurrentAmount += depositAmount;
+    vaultTokenAccountCurrentAmount += depositAmount;
+    vaultTotalSharesCurrentAmount += depositAmount;
+    vaultTotalIdleCurrentAmount += depositAmount;
+
+    const remainingAccountsMap = {
+      accountsMap: [
+        {
+          strategyAcc: new BN(0),
+          strategyTokenAccount: new BN(1),
+          strategyData: new BN(2),
+          remainingAccounts: [new BN(0)],
+        },
       ],
+    };
+
+    const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+      vaultProgram.programId
+    )[0];
+
+    await vaultProgram.methods
+      .withdraw(new BN(withdrawalAmount), new BN(0), remainingAccountsMap)
+      .accounts({
+        vault: vault,
+        underlyingMint,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .remainingAccounts([
+        { pubkey: strategy, isWritable: true, isSigner: false },
+        {
+          pubkey: strategyTokenAccount,
+          isWritable: true,
+          isSigner: false,
+        },
+        { pubkey: strategyData, isWritable: true, isSigner: false },
+      ])
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount += withdrawalAmount;
+    userSharesCurrentAmount -= withdrawalAmount;
+    vaultTokenAccountCurrentAmount -= withdrawalAmount;
+    vaultTotalSharesCurrentAmount -= withdrawalAmount;
+    vaultTotalIdleCurrentAmount -= withdrawalAmount;
+
+    await validateUserTokenAndShareData({
+      userTokenAccount,
+      userSharesAccount,
+      userCurrentTokenAmount,
+      userSharesCurrentAmount,
+    });
+
+    await validateVaultTokenAndShareData({
+      vaultTokenAccount,
+      vault,
+      vaultTokenAccountCurrentAmount,
+      vaultTotalDebtCurrentAmount,
+      vaultTotalIdleCurrentAmount,
+      vaultTotalSharesCurrentAmount,
+    });
+  });
+
+  it("Withdrawing full amount from the vault with partially allocated funds is successful", async () => {
+    const userMintAmount = 2000000000;
+    const depositAmount = 100000000;
+    const withdrawalAmount = 100000000;
+    const updateDebtAmount = 60000000;
+
+    const accountant = await initNextAccountant({
+      accountantConfig,
+      admin: generalAdmin,
+    });
+
+    const vaultConfig = {
+      depositLimit: new BN(100000000000),
+      minUserDeposit: new BN(100000000),
+      accountant: accountant,
+      profitMaxUnlockTime: new BN(0),
+      kycVerifiedOnly: false,
+      directDepositEnabled: true,
+      whitelistedOnly: false,
+      directWithdrawEnabled: true,
+    };
+
+    const strategyConfig = new SimpleStrategyConfig({
+      depositLimit: new BN(100000000000),
+      performanceFee: new BN(1000),
+      feeManager: generalAdmin.publicKey,
+    });
+
+    const {
+      vault,
+      strategy,
+      vaultTokenAccount,
+      strategyTokenAccount,
+      sharesMint,
+    } = await setUpTestVaultWithSingleStrategy({
+      admin: generalAdmin,
+      accountant: accountant,
+      vaultConfig: vaultConfig,
+      underlyingMint: underlyingMint,
+      strategyConfig: strategyConfig,
+      strategyMaxDebt: 100000000000,
+    });
+
+    const { user, userTokenAccount } = await setUpTestUser({
+      underlyingMint,
+      underlyingMintOwner,
+      mintAmount: 2000000000,
+    });
+
+    const userSharesAccount = await token.createAccount(
+      provider.connection,
+      user,
+      sharesMint,
+      user.publicKey
+    );
+
+    // Set up initial expected values
+    let userCurrentTokenAmount = userMintAmount;
+    let userSharesCurrentAmount = 0;
+    let vaultTokenAccountCurrentAmount = 0;
+    let vaultTotalSharesCurrentAmount = 0;
+    let vaultTotalIdleCurrentAmount = 0;
+    let vaultTotalDebtCurrentAmount = 0;
+
+    await vaultProgram.methods
+      .deposit(new BN(depositAmount))
+      .accounts({
+        vault: vault,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        underlyingMint: underlyingMint,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount -= depositAmount;
+    userSharesCurrentAmount += depositAmount;
+    vaultTokenAccountCurrentAmount += depositAmount;
+    vaultTotalSharesCurrentAmount += depositAmount;
+    vaultTotalIdleCurrentAmount += depositAmount;
+
+    await vaultProgram.methods
+      .updateDebt(new BN(updateDebtAmount))
+      .accounts({
+        vault: vault,
+        strategy: strategy,
+        underlyingMint,
+        signer: generalAdmin.publicKey,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .signers([generalAdmin])
+      .rpc();
+
+    vaultTokenAccountCurrentAmount -= updateDebtAmount;
+    vaultTotalIdleCurrentAmount -= updateDebtAmount;
+    vaultTotalDebtCurrentAmount += updateDebtAmount;
+
+    const remainingAccountsMap = {
+      accountsMap: [
+        {
+          strategyAcc: new BN(0),
+          strategyTokenAccount: new BN(1),
+          strategyData: new BN(2),
+          remainingAccounts: [new BN(0)],
+        },
+      ],
+    };
+
+    const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+      vaultProgram.programId
+    )[0];
+
+    await vaultProgram.methods
+      .withdraw(new BN(withdrawalAmount), new BN(0), remainingAccountsMap)
+      .accounts({
+        vault: vault,
+        underlyingMint,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .remainingAccounts([
+        { pubkey: strategy, isWritable: true, isSigner: false },
+        {
+          pubkey: strategyTokenAccount,
+          isWritable: true,
+          isSigner: false,
+        },
+        { pubkey: strategyData, isWritable: true, isSigner: false },
+      ])
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount += withdrawalAmount;
+    userSharesCurrentAmount -= withdrawalAmount;
+    vaultTokenAccountCurrentAmount -= withdrawalAmount - updateDebtAmount;
+    vaultTotalSharesCurrentAmount -= withdrawalAmount;
+    vaultTotalIdleCurrentAmount -= withdrawalAmount - updateDebtAmount;
+    vaultTotalDebtCurrentAmount -= updateDebtAmount;
+
+    await validateUserTokenAndShareData({
+      userTokenAccount,
+      userSharesAccount,
+      userCurrentTokenAmount,
+      userSharesCurrentAmount,
+    });
+
+    await validateVaultTokenAndShareData({
+      vaultTokenAccount,
+      vault,
+      vaultTokenAccountCurrentAmount,
+      vaultTotalDebtCurrentAmount,
+      vaultTotalIdleCurrentAmount,
+      vaultTotalSharesCurrentAmount,
+    });
+  });
+
+  it("Withdrawing full amount from the vault with fully allocated funds is successful", async () => {
+    const userMintAmount = 2000000000;
+    const depositAmount = 100000000;
+    const withdrawalAmount = 100000000;
+    const updateDebtAmount = 100000000;
+
+    const accountant = await initNextAccountant({
+      accountantConfig,
+      admin: generalAdmin,
+    });
+
+    const vaultConfig = {
+      depositLimit: new BN(100000000000),
+      minUserDeposit: new BN(100000000),
+      accountant: accountant,
+      profitMaxUnlockTime: new BN(0),
+      kycVerifiedOnly: false,
+      directDepositEnabled: true,
+      whitelistedOnly: false,
+      directWithdrawEnabled: true,
+    };
+
+    const strategyConfig = new SimpleStrategyConfig({
+      depositLimit: new BN(100000000000),
+      performanceFee: new BN(1000),
+      feeManager: generalAdmin.publicKey,
+    });
+
+    const {
+      vault,
+      strategy,
+      vaultTokenAccount,
+      strategyTokenAccount,
+      sharesMint,
+    } = await setUpTestVaultWithSingleStrategy({
+      admin: generalAdmin,
+      accountant: accountant,
+      vaultConfig: vaultConfig,
+      underlyingMint: underlyingMint,
+      strategyConfig: strategyConfig,
+      strategyMaxDebt: 100000000000,
+    });
+
+    const { user, userTokenAccount } = await setUpTestUser({
+      underlyingMint,
+      underlyingMintOwner,
+      mintAmount: 2000000000,
+    });
+
+    const userSharesAccount = await token.createAccount(
+      provider.connection,
+      user,
+      sharesMint,
+      user.publicKey
+    );
+
+    // Set up initial expected values
+    let userCurrentTokenAmount = userMintAmount;
+    let userSharesCurrentAmount = 0;
+    let vaultTokenAccountCurrentAmount = 0;
+    let vaultTotalSharesCurrentAmount = 0;
+    let vaultTotalIdleCurrentAmount = 0;
+    let vaultTotalDebtCurrentAmount = 0;
+
+    await vaultProgram.methods
+      .deposit(new BN(depositAmount))
+      .accounts({
+        vault: vault,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        underlyingMint: underlyingMint,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount -= depositAmount;
+    userSharesCurrentAmount += depositAmount;
+    vaultTokenAccountCurrentAmount += depositAmount;
+    vaultTotalSharesCurrentAmount += depositAmount;
+    vaultTotalIdleCurrentAmount += depositAmount;
+
+    await vaultProgram.methods
+      .updateDebt(new BN(updateDebtAmount))
+      .accounts({
+        vault: vault,
+        strategy: strategy,
+        underlyingMint,
+        signer: generalAdmin.publicKey,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .signers([generalAdmin])
+      .rpc();
+
+    vaultTokenAccountCurrentAmount -= updateDebtAmount;
+    vaultTotalIdleCurrentAmount -= updateDebtAmount;
+    vaultTotalDebtCurrentAmount += updateDebtAmount;
+
+    const remainingAccountsMap = {
+      accountsMap: [
+        {
+          strategyAcc: new BN(0),
+          strategyTokenAccount: new BN(1),
+          strategyData: new BN(2),
+          remainingAccounts: [new BN(0)],
+        },
+      ],
+    };
+
+    const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
+      vaultProgram.programId
+    )[0];
+
+    await vaultProgram.methods
+      .withdraw(new BN(withdrawalAmount), new BN(0), remainingAccountsMap)
+      .accounts({
+        vault: vault,
+        underlyingMint,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .remainingAccounts([
+        { pubkey: strategy, isWritable: true, isSigner: false },
+        {
+          pubkey: strategyTokenAccount,
+          isWritable: true,
+          isSigner: false,
+        },
+        { pubkey: strategyData, isWritable: true, isSigner: false },
+      ])
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount += withdrawalAmount;
+    userSharesCurrentAmount -= withdrawalAmount;
+    vaultTokenAccountCurrentAmount -= withdrawalAmount - updateDebtAmount;
+    vaultTotalSharesCurrentAmount -= withdrawalAmount;
+    vaultTotalIdleCurrentAmount -= withdrawalAmount - updateDebtAmount;
+    vaultTotalDebtCurrentAmount -= updateDebtAmount;
+
+    await validateUserTokenAndShareData({
+      userTokenAccount,
+      userSharesAccount,
+      userCurrentTokenAmount,
+      userSharesCurrentAmount,
+    });
+
+    await validateVaultTokenAndShareData({
+      vaultTokenAccount,
+      vault,
+      vaultTokenAccountCurrentAmount,
+      vaultTotalDebtCurrentAmount,
+      vaultTotalIdleCurrentAmount,
+      vaultTotalSharesCurrentAmount,
+    });
+  });
+
+  it("Withdrawing more amount than it is available in the vault should revert", async () => {
+    const userMintAmount = 2000000000;
+    const depositAmount = 100000000;
+    const withdrawalAmount = 100000001;
+
+    const accountant = await initNextAccountant({
+      accountantConfig,
+      admin: generalAdmin,
+    });
+
+    const vaultConfig = {
+      depositLimit: new BN(100000000000),
+      minUserDeposit: new BN(100000000),
+      accountant: accountant,
+      profitMaxUnlockTime: new BN(0),
+      kycVerifiedOnly: false,
+      directDepositEnabled: true,
+      whitelistedOnly: false,
+      directWithdrawEnabled: true,
+    };
+
+    const strategyConfig = new SimpleStrategyConfig({
+      depositLimit: new BN(100000000000),
+      performanceFee: new BN(1000),
+      feeManager: generalAdmin.publicKey,
+    });
+
+    const {
+      vault,
+      strategy,
+      vaultTokenAccount,
+      strategyTokenAccount,
+      sharesMint,
+    } = await setUpTestVaultWithSingleStrategy({
+      admin: generalAdmin,
+      accountant: accountant,
+      vaultConfig: vaultConfig,
+      underlyingMint: underlyingMint,
+      strategyConfig: strategyConfig,
+      strategyMaxDebt: 100000000000,
+    });
+
+    const { user, userTokenAccount } = await setUpTestUser({
+      underlyingMint,
+      underlyingMintOwner,
+      mintAmount: 2000000000,
+    });
+
+    const userSharesAccount = await token.createAccount(
+      provider.connection,
+      user,
+      sharesMint,
+      user.publicKey
+    );
+
+    // Set up initial expected values
+    let userCurrentTokenAmount = userMintAmount;
+    let userSharesCurrentAmount = 0;
+    let vaultTokenAccountCurrentAmount = 0;
+    let vaultTotalSharesCurrentAmount = 0;
+    let vaultTotalIdleCurrentAmount = 0;
+    let vaultTotalDebtCurrentAmount = 0;
+
+    await vaultProgram.methods
+      .deposit(new BN(depositAmount))
+      .accounts({
+        vault: vault,
+        accountant: accountant,
+        user: user.publicKey,
+        userTokenAccount: userTokenAccount,
+        userSharesAccount: userSharesAccount,
+        underlyingMint: underlyingMint,
+        tokenProgram: token.TOKEN_PROGRAM_ID,
+      })
+      .signers([user])
+      .rpc();
+
+    userCurrentTokenAmount -= depositAmount;
+    userSharesCurrentAmount += depositAmount;
+    vaultTokenAccountCurrentAmount += depositAmount;
+    vaultTotalSharesCurrentAmount += depositAmount;
+    vaultTotalIdleCurrentAmount += depositAmount;
+
+    const remainingAccountsMap = {
+      accountsMap: [
+        {
+          strategyAcc: new BN(0),
+          strategyTokenAccount: new BN(1),
+          strategyData: new BN(2),
+          remainingAccounts: [new BN(0)],
+        },
+      ],
+    };
+
+    const strategyData = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("strategy_data"), vault.toBuffer(), strategy.toBuffer()],
       vaultProgram.programId
     )[0];
 
@@ -349,27 +828,43 @@ describe.skip("Vault User Operations: Withdrawal Tests", () => {
       await vaultProgram.methods
         .withdraw(new BN(withdrawalAmount), new BN(0), remainingAccountsMap)
         .accounts({
-          vault: vaultOne,
+          vault: vault,
           underlyingMint,
-          accountant: accountantOne,
-          user: whitelistedUser.publicKey,
-          userTokenAccount: whitelistedUserTokenAccount,
-          userSharesAccount: whitelistedUserSharesAccountVaultOne,
+          accountant: accountant,
+          user: user.publicKey,
+          userTokenAccount: userTokenAccount,
+          userSharesAccount: userSharesAccount,
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .remainingAccounts([
-          { pubkey: strategyOne, isWritable: true, isSigner: false },
+          { pubkey: strategy, isWritable: true, isSigner: false },
           {
-            pubkey: strategyTokenAccountOne,
+            pubkey: strategyTokenAccount,
             isWritable: true,
             isSigner: false,
           },
           { pubkey: strategyData, isWritable: true, isSigner: false },
         ])
-        .signers([whitelistedUser])
+        .signers([user])
         .rpc();
     } catch (err) {
       expect(err.message).to.contain(errorStrings.insufficientShares);
     }
+
+    await validateUserTokenAndShareData({
+      userTokenAccount,
+      userSharesAccount,
+      userCurrentTokenAmount,
+      userSharesCurrentAmount,
+    });
+
+    await validateVaultTokenAndShareData({
+      vaultTokenAccount,
+      vault,
+      vaultTokenAccountCurrentAmount,
+      vaultTotalDebtCurrentAmount,
+      vaultTotalIdleCurrentAmount,
+      vaultTotalSharesCurrentAmount,
+    });
   });
 });
