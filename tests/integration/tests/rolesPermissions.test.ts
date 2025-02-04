@@ -562,6 +562,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -607,6 +608,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -716,6 +718,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -1720,6 +1723,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -1765,6 +1769,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -2772,6 +2777,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -3893,6 +3899,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -3938,6 +3945,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -5012,6 +5020,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
@@ -5057,6 +5066,7 @@ describe("Roles and Permissions Tests", () => {
         profitMaxUnlockTime: new BN(0),
         kycVerifiedOnly: true,
         directDepositEnabled: false,
+        directWithdrawEnabled: true,
         whitelistedOnly: false,
       };
 
