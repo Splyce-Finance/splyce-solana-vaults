@@ -159,6 +159,7 @@ pub fn handle_fulfill_withdrawal_request(ctx: Context<FulfillWithdrawalRequest>
         user: ctx.accounts.withdraw_request.user,
         amount: assets_to_transfer,
         index: ctx.accounts.withdraw_request.index,
+        timestamp: Clock::get()?.unix_timestamp,
     });
 
     Ok(())
