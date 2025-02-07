@@ -18,7 +18,7 @@ use crate::constants::{
 
 #[derive(Accounts)]
 pub struct FulfillWithdrawalRequest<'info> {
-    #[account(mut, close = user)]
+    #[account(mut, close = signer)]
     pub withdraw_request: Account<'info, WithdrawRequest>,
 
     #[account(mut, address = withdraw_request.vault)]
@@ -26,10 +26,6 @@ pub struct FulfillWithdrawalRequest<'info> {
 
     #[account(mut, seeds = [UNDERLYING_SEED.as_bytes(), vault.key().as_ref()], bump)]
     pub vault_token_account: InterfaceAccount<'info, TokenAccount>,
-
-    /// CHECK:
-    #[account(mut, address = withdraw_request.user)]
-    pub user: AccountInfo<'info>,
 
     #[account(mut, address = withdraw_request.recipient)]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
@@ -67,7 +63,7 @@ pub struct FulfillWithdrawalRequest<'info> {
         seeds = [
             USER_DATA_SEED.as_bytes(), 
             vault.key().as_ref(), 
-            user.key().as_ref()
+            withdraw_request.user.as_ref()
         ], 
         bump
         )]
