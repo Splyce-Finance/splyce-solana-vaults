@@ -21,8 +21,8 @@ if (!CONFIG) {
 }
 
 // Address to transfer management to
-// const NEW_MANAGER = new anchor.web3.PublicKey("HMcuvAp4dB1EePEBcQHVAprVxpqWaJKBviJgGa8k3ZFF"); //devnet report bot
-const NEW_MANAGER = new anchor.web3.PublicKey("JE1GQhjSiam5TckzWcUu6CHERM3ELfmsVcfd6VJvj6wv"); //mainnet report bot
+const NEW_MANAGER = new anchor.web3.PublicKey("HMcuvAp4dB1EePEBcQHVAprVxpqWaJKBviJgGa8k3ZFF"); //devnet report bot
+// const NEW_MANAGER = new anchor.web3.PublicKey("JE1GQhjSiam5TckzWcUu6CHERM3ELfmsVcfd6VJvj6wv"); //mainnet report bot
 
 function getSecretKeyPath(): string {
   const ENV = process.env.CLUSTER || 'devnet';
@@ -49,8 +49,8 @@ async function main() {
         console.log("New manager address:", NEW_MANAGER.toBase58());
 
         // Calculate vault PDA (using index 0 as default)
-        const vaultIndex = 2;
-        const strategyIndex = 13; // WIF strategy index
+        const vaultIndex = 0;
+        const strategyIndex = 2; // WIF strategy index
 
         const vault = anchor.web3.PublicKey.findProgramAddressSync(
             [

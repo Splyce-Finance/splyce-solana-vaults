@@ -177,13 +177,13 @@ async function main() {
     //   .rpc();
     // console.log("Strategies Manager role assigned to REPORT_BOT.");
 
-    // await accessControlProgram.methods.setRole(ROLES.VAULTS_ADMIN, REPORT_BOT)
-    //   .accounts({
-    //     signer: admin.publicKey,
-    //   })
-    //   .signers([admin])
-    //   .rpc();
-    // console.log("Vaults Admin role assigned to REPORT_BOT.");
+    await accessControlProgram.methods.setRole(ROLES.VAULTS_ADMIN, REPORT_BOT)
+      .accounts({
+        signer: admin.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+    console.log("Vaults Admin role assigned to REPORT_BOT.");
 
     // await accessControlProgram.methods.setRole(ROLES.ACCOUNTANT_ADMIN, admin.publicKey)
     //   .accounts({

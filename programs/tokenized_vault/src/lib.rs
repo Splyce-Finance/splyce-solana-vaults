@@ -10,7 +10,7 @@ use anchor_lang::prelude::*;
 pub use state::{SharesConfig, VaultConfig};
 pub use instructions::*;
 
-declare_id!("8Y5ZEEnhiNdvGHbfiZVj2eSawrNrQTKd9jPEFqnnKizC");
+declare_id!("8LhWeG3EnMiD4ruNSE43kDPYjLznTJrjZTfPNHq7Aqw9");
 
 #[program]
 pub mod tokenized_vault {
@@ -120,6 +120,22 @@ pub mod tokenized_vault {
 
     pub fn set_min_total_idle(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
         handle_set_min_total_idle(ctx, value)
+    }
+
+    pub fn set_direct_withdraw_enabled(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_direct_withdraw_enabled(ctx, value)
+    }
+
+    pub fn set_user_deposit_limit(ctx: Context<SetVaultProperty>, value: u64) -> Result<()> {
+        handle_set_user_deposit_limit(ctx, value)
+    }
+
+    pub fn set_whitelisted_only(ctx: Context<SetVaultProperty>, value: bool) -> Result<()> {
+        handle_set_whitelisted_only(ctx, value)
+    }
+
+    pub fn set_accountant(ctx: Context<SetVaultProperty>, value: Pubkey) -> Result<()> {
+        handle_set_accountant(ctx, value)
     }
 
     pub fn process_report(ctx: Context<ProcessReport>) -> Result<()> {

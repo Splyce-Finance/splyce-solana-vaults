@@ -148,25 +148,27 @@ async function main() {
     console.log("User Shares:", initialBalances.userShares.value.uiAmount);
 
       // Execute deposit first
-      await vaultProgram.methods
-        .deposit(depositAmount)
-        .accounts({
-          vault,
-          accountant,
-          userTokenAccount,
-          underlyingMint,
-          userSharesAccount: userSharesAccount,
-          user: admin.publicKey,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .signers([admin])
-        .rpc();
+      // await vaultProgram.methods
+      //   .deposit(depositAmount)
+      //   .accounts({
+      //     vault,
+      //     accountant,
+      //     userTokenAccount,
+      //     underlyingMint,
+      //     userSharesAccount: userSharesAccount,
+      //     user: admin.publicKey,
+      //     tokenProgram: TOKEN_PROGRAM_ID,
+      //   })
+      //   .signers([admin])
+      //   .rpc();
 
       console.log("\nDeposit transaction executed successfully");
       console.log(`Deposit amount: ${depositAmount.toString()}`);
 
       // Get assets and verify environment
-      const assets = ["BONK", "PENGU", "WIF"]; // Define fixed order of assets
+      // const assets = ["BONK", "PENGU", "WIF"]; // Define fixed order of assets
+      const assets = ["SOL", "USDT", "SAMO"]; // Define fixed order of assets
+
       const assetIndexToUpdate = 2; // 0 for BONK, 1 for PENGU, 2 for WIF
       const assetSymbol = assets[assetIndexToUpdate];
       const asset = CONFIG.mints.assets[assetSymbol];
@@ -238,19 +240,19 @@ async function main() {
         units: 300_000,
       });
 
-      // await vaultProgram.methods
-      //   .updateDebt(strategyAmount)
-      //   .accounts({
-      //     vault,
-      //     strategy,
-      //     signer: admin.publicKey,
-      //     underlyingMint,
-      //     tokenProgram: TOKEN_PROGRAM_ID,
-      //   })
-      //   .remainingAccounts(remainingAccounts)
-      //   .preInstructions([computeUnitIx])
-      //   .signers([admin])
-      //   .rpc();
+      await vaultProgram.methods
+        .updateDebt(strategyAmount)
+        .accounts({
+          vault,
+          strategy,
+          signer: admin.publicKey,
+          underlyingMint,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        })
+        .remainingAccounts(remainingAccounts)
+        .preInstructions([computeUnitIx])
+        .signers([admin])
+        .rpc();
 
       console.log(`✓ Debt updated for ${assetSymbol}`);
 

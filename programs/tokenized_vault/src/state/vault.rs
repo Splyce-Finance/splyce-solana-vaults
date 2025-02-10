@@ -135,7 +135,11 @@ impl Vault {
     }
 
     pub fn max_deposit(&self) -> u64 {
-        self.deposit_limit - self.total_funds()
+        if self.total_funds() >= self.deposit_limit {
+            0
+        } else {
+            self.deposit_limit - self.total_funds()
+        }
     }
 
     pub fn convert_to_shares(&self, amount: u64) -> u64 {
