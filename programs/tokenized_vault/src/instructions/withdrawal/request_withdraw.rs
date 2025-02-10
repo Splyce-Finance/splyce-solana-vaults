@@ -164,9 +164,9 @@ fn handle_internal<'info>(
         recipient: ctx.accounts.withdraw_request.recipient,
         max_loss,
         fee_shares,
-        priority_fee,
         index: ctx.accounts.withdraw_request.index,
         timestamp: Clock::get()?.unix_timestamp,
+        priority_fee,
     });
 
     Ok(())
