@@ -71,8 +71,8 @@ async function main() {
     console.log("Accountant Program:", accountantProgram.programId.toBase58());
     console.log("Strategy Program:", strategyProgram.programId.toBase58());
 
-    const depositAmount = new BN(3_800_000); // 4 USDC
-    const vaultIndex = 0;
+    const depositAmount = new BN(11_000_000); // 4 USDC
+    const vaultIndex = 1;
     const accountantIndex = 0; // The first accountant we created
 
     // Derive vault PDA
@@ -166,11 +166,16 @@ async function main() {
       console.log(`Deposit amount: ${depositAmount.toString()}`);
 
       // Get assets and verify environment
-      // const assets = ["BONK", "PENGU", "WIF"]; // Define fixed order of assets
-      const assets = ["SOL", "USDT", "SAMO"]; // Define fixed order of assets
+      const assets = [
+        { name: "SOL", index: 3 },
+        { name: "USDT", index: 4 },
+        { name: "SAMO", index: 5 }
+      ];
 
-      const assetIndexToUpdate = 2; // 0 for BONK, 1 for PENGU, 2 for WIF
-      const assetSymbol = assets[assetIndexToUpdate];
+      // Select which asset to update (0 for SOL, 1 for USDT, 2 for SAMO)
+      const assetToUpdate = assets[2]; // Change index as needed
+      const assetSymbol = assetToUpdate.name;
+      const assetIndexToUpdate = assetToUpdate.index;
       const asset = CONFIG.mints.assets[assetSymbol];
 
       if (!asset) {

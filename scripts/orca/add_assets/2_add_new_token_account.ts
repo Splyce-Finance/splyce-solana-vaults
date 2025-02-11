@@ -11,8 +11,10 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses.json');
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'addresses.json');
+const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+
 const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
 const ENV = process.env.CLUSTER || 'devnet';
 const CONFIG = ADDRESSES[ENV];
@@ -52,7 +54,7 @@ async function main() {
     )[0];
     
     const vaultConfig = await vaultProgram.account.config.fetch(configPDA);
-    const vaultIndex = 2;  // Hardcoded to match other scripts
+    const vaultIndex = 1;  // Hardcoded to match other scripts
     
     if (vaultIndex < 0) {
       throw new Error("No vaults have been created yet");
@@ -79,11 +81,11 @@ async function main() {
     // ];
 
     // strategy indices for vaultIndex = 2
-    const assets = [
-      { name: "wBTC", index: 7 },
-      { name: "whETH", index: 13 },
-      { name: "SOL", index: 9 }
-    ];
+    // const assets = [
+    //   { name: "wBTC", index: 7 },
+    //   { name: "whETH", index: 13 },
+    //   { name: "SOL", index: 9 }
+    // ];
 
     // // strategy indices for vaultIndex = 3
     // const assets = [
@@ -92,8 +94,14 @@ async function main() {
     //   { name: "WIF", index: 12 }
     // ];
     
+    const assets = [
+      { name: "SOL", index: 3 },
+      { name: "USDT", index: 4 },
+      { name: "SAMO", index: 5 }
+    ];
+
     // Specify which asset to initialize
-    const assetToInitialize = assets[1]; // Change index to 0, 1, or 2 to select wBTC, whETH, or SOL
+    const assetToInitialize = assets[2]; // Change index to 0, 1, or 2 to select wBTC, whETH, or SOL
     const assetName = assetToInitialize.name;
     const strategyIndex = assetToInitialize.index;
     

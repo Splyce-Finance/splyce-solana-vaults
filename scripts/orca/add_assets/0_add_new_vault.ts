@@ -14,7 +14,10 @@ import { AccessControl } from "../../../target/types/access_control";
 dotenv.config();
 
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses.json');
-const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'addresses.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'addresses.json');
+const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+
+
 
 const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
 const ENV = process.env.CLUSTER || 'devnet';
@@ -60,7 +63,7 @@ async function main() {
     
     const config = await vaultProgram.account.config.fetch(configPDA);
     // const newVaultIndex = config.nextVaultIndex.toNumber();
-    const newVaultIndex = 3;
+    const newVaultIndex = 1;
 
     console.log("Creating new vault with index:", newVaultIndex);
 
@@ -121,15 +124,15 @@ async function main() {
       directWithdrawEnabled: CONFIG.vault_config.direct_withdraw_enabled,
   };
     // Initialize new vault
-    // await vaultProgram.methods.initVault(vaultConfig)
-    //   .accounts({
-    //     underlyingMint,
-    //     signer: admin.publicKey,
-    //     tokenProgram: TOKEN_PROGRAM_ID,
-    //   })
-    //   .signers([admin])
-    //   .rpc();
-    // console.log("New vault initialized");
+    await vaultProgram.methods.initVault(vaultConfig)
+      .accounts({
+        underlyingMint,
+        signer: admin.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .signers([admin])
+      .rpc();
+    console.log("New vault initialized");
 
     //need to whitelist three addresses
       // const ADDRESS_TO_WHITELIST = new anchor.web3.PublicKey("FJ2B6DtzYXbk6mQhQATGV9d9fb9htasvMmnUCSbSvpW9");
@@ -152,14 +155,14 @@ async function main() {
     // Initialize vault shares
     const sharesConfig = CONFIG.shares_config;
     console.log("Initializing vault shares...");
-    // await vaultProgram.methods.initVaultShares(new BN(newVaultIndex), sharesConfig)
-    //   .accounts({
-    //     metadata: metadataAddress,
-    //     signer: admin.publicKey,
-    //   })
-    //   .signers([admin])
-    //   .rpc();
-    // console.log("Vault shares initialized");
+    await vaultProgram.methods.initVaultShares(new BN(newVaultIndex), sharesConfig)
+      .accounts({
+        metadata: metadataAddress,
+        signer: admin.publicKey,
+      })
+      .signers([admin])
+      .rpc();
+    console.log("Vault shares initialized");
 
     // Initialize accountant token accounts
     // console.log("Initializing accountant token account...");

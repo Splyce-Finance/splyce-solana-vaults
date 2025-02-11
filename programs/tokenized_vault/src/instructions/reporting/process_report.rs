@@ -109,6 +109,7 @@ pub fn handle_process_report(ctx: Context<ProcessReport>) -> Result<()> {
         current_debt: strategy_assets,
         protocol_fees: 0, //TODO: this is set as 0
         total_fees: fee_shares,
+        // TODO need to emit total debt
         total_shares: ctx.accounts.vault.load()?.total_shares(),
         share_price,
         timestamp: Clock::get()?.unix_timestamp,

@@ -19,7 +19,9 @@ import * as token from "@solana/spl-token";
 
 // Load config
 dotenv.config();
-const ADDRESSES_FILE = path.join(__dirname, '../deployment_addresses', 'addresses.json');
+// const ADDRESSES_FILE = path.join(__dirname, '../deployment_addresses', 'addresses.json');
+const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+
 const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
 const ENV = process.env.CLUSTER || 'devnet';
 const CONFIG = ADDRESSES[ENV];
@@ -53,7 +55,7 @@ async function main() {
     const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
     const accountantProgram = anchor.workspace.Accountant as Program<Accountant>;
 
-    const depositAmount = new BN(6_000_000); // 6 USDC
+    const depositAmount = new BN(11_000_000); // 6 USDC
     const vaultIndex = 1;
     const accountantIndex = 0;
 
@@ -89,22 +91,22 @@ async function main() {
     );
 
     // Check if the ATA exists
-    // try {
-    //   const balance = await provider.connection.getTokenAccountBalance(userSharesAccount);
-    //   console.log("Existing shares account found");
-    // } catch (e) {
-    //   console.log("Creating user shares token account...");
-    //   await createAssociatedTokenAccount(
-    //     provider.connection,
-    //     admin,
-    //     sharesMint,
-    //     admin.publicKey,
-    //     undefined,
-    //     TOKEN_PROGRAM_ID,
-    //     ASSOCIATED_TOKEN_PROGRAM_ID
-    //   );
-    //   console.log("Created user shares token account");
-    // }
+    try {
+      const balance = await provider.connection.getTokenAccountBalance(userSharesAccount);
+      console.log("Existing shares account found");
+    } catch (e) {
+      console.log("Creating user shares token account...");
+      await createAssociatedTokenAccount(
+        provider.connection,
+        admin,
+        sharesMint,
+        admin.publicKey,
+        undefined,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      console.log("Created user shares token account");
+    }
 
     // Get user's token accounts
     const userTokenAccount = await getAssociatedTokenAddress(

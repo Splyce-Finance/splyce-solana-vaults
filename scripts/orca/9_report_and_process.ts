@@ -47,7 +47,7 @@ async function main() {
     const accessControlProgram = anchor.workspace.AccessControl as Program<AccessControl>;
 
     // Get vault PDA
-    const vaultIndex = 0;
+    const vaultIndex = 1;
     const [vaultPDA] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("vault"), new BN(vaultIndex).toArrayLike(Buffer, 'le', 8)],
       tokenizedVaultProgram.programId
@@ -59,10 +59,17 @@ async function main() {
       accountantProgram.programId
     )[0];
 
-    // Define fixed order of assets and select which to process
-    const assets = ["BONK", "PENGU", "WIF"]; // Define fixed order of assets
-    const assetIndexToProcess = 2; // 0 for BONK, 1 for PENGU, 2 for WIF
-    const symbol = assets[assetIndexToProcess];
+    // Define fixed order of assets with their corresponding indices
+    const assets = [
+      { name: "SOL", index: 3 },
+      { name: "USDT", index: 4 },
+      { name: "SAMO", index: 5 }
+    ];
+    
+    // Select which asset to process (0 for SOL, 1 for USDT, 2 for SAMO)
+    const assetToProcess = assets[1]; // Change index as needed
+    const symbol = assetToProcess.name;
+    const assetIndexToProcess = assetToProcess.index;
     const assetConfig = CONFIG.mints.assets[symbol];
 
     if (!assetConfig) {
@@ -164,6 +171,7 @@ async function main() {
     console.log("\n=== Final Vault State ===");
     console.log("- Total Debt:", finalVaultState.totalDebt.toString());
     console.log("- Total Shares:", finalVaultState.totalShares.toString());
+    console.log("- Total Idle:", finalVaultState.totalIdle.toString());
     console.log("- Last Profit Update:", finalVaultState.lastProfitUpdate.toString());
     console.log("- Profit Unlocking Rate:", finalVaultState.profitUnlockingRate.toString());
     console.log("- Full Profit Unlock Date:", finalVaultState.fullProfitUnlockDate.toString());
