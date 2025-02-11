@@ -126,9 +126,9 @@ pub struct WithdrawalRequestedEvent {
     pub amount: u64,
     pub max_loss: u64,
     pub fee_shares: u64,
-    pub priority_fee: u64,
     pub index: u64,
     pub timestamp: i64,
+    pub priority_fee: u64,
 }
 
 #[event]
