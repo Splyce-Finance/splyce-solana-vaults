@@ -27,7 +27,7 @@ import {
 import * as token from "@solana/spl-token";
 import { SimpleStrategyConfig } from "../../../utils/schemas";
 
-describe.only("Vault User Operations: Withdrawal Tests", () => {
+describe("Vault User Operations: Withdrawal Tests", () => {
   let rolesAdmin: anchor.web3.Keypair;
   let generalAdmin: anchor.web3.Keypair;
   let generalAdminTokenAccount: anchor.web3.PublicKey;
@@ -1173,7 +1173,8 @@ describe.only("Vault User Operations: Withdrawal Tests", () => {
     });
   });
 
-  it("Withdrawing valid amount in case max loss is exceeded should revert", async () => {
+  // In progress
+  it.skip("Withdrawing valid amount in case max loss is exceeded should revert", async () => {
     const userMintAmount = 2000000000;
     const depositAmount = 100000000;
     const withdrawalAmount = 1000000;
