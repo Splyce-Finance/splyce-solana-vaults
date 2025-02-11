@@ -92,4 +92,8 @@ pub mod strategy {
     pub fn free_funds<'info>(ctx:  Context<'_, '_, '_, 'info, FreeFunds<'info>>, amount: u64) -> Result<()> {
         handle_free_funds(ctx, amount)
     }
+
+    pub fn set_total_assets(ctx: Context<SetStrategyValue>, total_assets: u64) -> Result<()> {
+        handle_set_total_assets(ctx, total_assets)
+    }
 }
