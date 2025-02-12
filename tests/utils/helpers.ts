@@ -2,11 +2,14 @@ import * as anchor from "@coral-xyz/anchor";
 import { TokenizedVault } from "../../target/types/tokenized_vault";
 import { BN, web3 } from "@coral-xyz/anchor";
 import { Strategy } from "../../target/types/strategy";
-import { SimpleStrategyConfigSchema } from "./schemas";
+import { SimpleStrategyConfig, SimpleStrategyConfigSchema } from "./schemas";
 import * as borsh from "borsh";
 import {
+  accountantProgram,
+  connection,
   METADATA_SEED,
   provider,
+  strategyProgram,
   TOKEN_METADATA_PROGRAM_ID,
   vaultProgram,
 } from "../integration/setups/globalSetup";
@@ -309,4 +312,246 @@ export const validateDirectDeposit = async ({
   );
 };
 
+export const initNextAccountant = async ({
+  accountantConfig,
+  admin,
+}: {
+  accountantConfig: anchor.web3.PublicKey;
+  admin: anchor.web3.Keypair;
+}): Promise<anchor.web3.PublicKey> => {
+  const accountantConfigAccount = await accountantProgram.account.config.fetch(
+    accountantConfig
+  );
+  const accountant = anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      Buffer.from(
+        new Uint8Array(
+          new BigUint64Array([
+            BigInt(accountantConfigAccount.nextAccountantIndex.toNumber()),
+          ]).buffer
+        )
+      ),
+    ],
+    accountantProgram.programId
+  )[0];
 
+  await accountantProgram.methods
+    .initAccountant({ generic: {} })
+    .accounts({
+      signer: admin.publicKey,
+    })
+    .signers([admin])
+    .rpc();
+
+  return accountant;
+};
+
+export const setUpTestUser = async ({
+  underlyingMint,
+  underlyingMintOwner,
+  mintAmount,
+}: {
+  underlyingMint: anchor.web3.PublicKey;
+  underlyingMintOwner: anchor.web3.Keypair;
+  mintAmount: number;
+}) => {
+  const user = anchor.web3.Keypair.generate();
+  await airdrop({
+    connection: connection,
+    publicKey: user.publicKey,
+    amount: 10e9,
+  });
+  const userTokenAccount = await token.createAccount(
+    connection,
+    user,
+    underlyingMint,
+    user.publicKey
+  );
+  await token.mintTo(
+    connection,
+    underlyingMintOwner,
+    underlyingMint,
+    userTokenAccount,
+    underlyingMintOwner.publicKey,
+    mintAmount
+  );
+  return { user, userTokenAccount };
+};
+
+export const setUpTestVaultWithSingleStrategy = async ({
+  admin,
+  accountant,
+  vaultConfig,
+  underlyingMint,
+  strategyConfig,
+  strategyMaxDebt,
+}: {
+  admin: anchor.web3.Keypair;
+  accountant: anchor.web3.PublicKey;
+  vaultConfig: any;
+  underlyingMint: anchor.web3.PublicKey;
+  strategyConfig: SimpleStrategyConfig;
+  strategyMaxDebt: number;
+}) => {
+  const sharesConfig = {
+    name: "Vault Test Shares",
+    symbol: "VTS",
+    uri: "https://gist.githubusercontent.com/vito-kovalione/08b86d3c67440070a8061ae429572494/raw/833e3d5f5988c18dce2b206a74077b2277e13ab6/PVT.json",
+  };
+
+  const [vault, sharesMint, metadataAccount, vaultTokenAccount] =
+    await initializeVault({
+      vaultProgram,
+      underlyingMint,
+      signer: admin,
+      vaultConfig: vaultConfig,
+      sharesConfig: sharesConfig,
+    });
+
+  const feeRecipient = anchor.web3.Keypair.generate();
+  await airdrop({
+    connection: connection,
+    publicKey: feeRecipient.publicKey,
+    amount: 10e9,
+  });
+
+  const feeRecipientSharesAccount = await token.createAccount(
+    provider.connection,
+    feeRecipient,
+    sharesMint,
+    feeRecipient.publicKey
+  );
+  const feeRecipientTokenAccount = await token.createAccount(
+    provider.connection,
+    feeRecipient,
+    underlyingMint,
+    feeRecipient.publicKey
+  );
+
+  const [strategy, strategyTokenAccount] = await initializeSimpleStrategy({
+    strategyProgram,
+    vault: vault,
+    underlyingMint,
+    signer: admin,
+    config: strategyConfig,
+  });
+
+  await vaultProgram.methods
+    .addStrategy(new BN(strategyMaxDebt))
+    .accounts({
+      vault,
+      strategy,
+      signer: admin.publicKey,
+    })
+    .signers([admin])
+    .rpc();
+
+  // Create token accounts and mint underlying tokens
+  await accountantProgram.methods
+    .initTokenAccount()
+    .accounts({
+      accountant: accountant,
+      signer: admin.publicKey,
+      mint: sharesMint,
+    })
+    .signers([admin])
+    .rpc();
+
+  await accountantProgram.methods
+    .initTokenAccount()
+    .accounts({
+      accountant: accountant,
+      signer: admin.publicKey,
+      mint: underlyingMint,
+    })
+    .signers([admin])
+    .rpc();
+
+  return {
+    vault,
+    sharesMint,
+    metadataAccount,
+    vaultTokenAccount,
+    strategy,
+    strategyTokenAccount,
+    accountant,
+    feeRecipient,
+    feeRecipientTokenAccount,
+    feeRecipientSharesAccount,
+  };
+};
+
+export const validateUserTokenAndShareData = async ({
+  userTokenAccount,
+  userSharesAccount,
+  userCurrentTokenAmount,
+  userSharesCurrentAmount,
+}: {
+  userTokenAccount: anchor.web3.PublicKey;
+  userSharesAccount: anchor.web3.PublicKey;
+  userCurrentTokenAmount: number;
+  userSharesCurrentAmount: number;
+}): Promise<void> => {
+  let userTokenAccountInfo = await token.getAccount(
+    provider.connection,
+    userTokenAccount
+  );
+  let userSharesAccountInfo = await token.getAccount(
+    provider.connection,
+    userSharesAccount
+  );
+
+  assert.strictEqual(
+    userTokenAccountInfo.amount.toString(),
+    userCurrentTokenAmount.toString(),
+    "User Token Account Amount equal invalid"
+  );
+  assert.strictEqual(
+    userSharesAccountInfo.amount.toString(),
+    userSharesCurrentAmount.toString(),
+    "User Shares Account Amount invalid"
+  );
+};
+
+export const validateVaultTokenAndShareData = async ({
+  vaultTokenAccount,
+  vault,
+  vaultTokenAccountCurrentAmount,
+  vaultTotalIdleCurrentAmount,
+  vaultTotalSharesCurrentAmount,
+  vaultTotalDebtCurrentAmount,
+}: {
+  vaultTokenAccount: anchor.web3.PublicKey;
+  vault: anchor.web3.PublicKey;
+  vaultTokenAccountCurrentAmount: number;
+  vaultTotalIdleCurrentAmount: number;
+  vaultTotalSharesCurrentAmount: number;
+  vaultTotalDebtCurrentAmount: number;
+}): Promise<void> => {
+  let vaultTokenAccountInfo = await token.getAccount(
+    provider.connection,
+    vaultTokenAccount
+  );
+  const vaultAccount = await vaultProgram.account.vault.fetch(vault);
+
+  assert.strictEqual(
+    vaultTokenAccountInfo.amount.toString(),
+    vaultTokenAccountCurrentAmount.toString(),
+    "Vault Token Account Amount invalid"
+  );
+  assert.strictEqual(
+    vaultAccount.totalIdle.toString(),
+    vaultTotalIdleCurrentAmount.toString(),
+    "Vault Total Idle Amount invalid"
+  );
+  assert.strictEqual(
+    vaultAccount.totalShares.toString(),
+    vaultTotalSharesCurrentAmount.toString(),
+    "Vault Total Shares Amount invalid"
+  );
+  assert.strictEqual(
+    vaultAccount.totalDebt.toString(),
+    vaultTotalDebtCurrentAmount.toString(),
+    "Vault Total Debt Amount invalid"
+  );
+};

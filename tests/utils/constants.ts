@@ -64,4 +64,6 @@ export const errorStrings = {
     "Error Code: ExceedUserDepositLimit. Error Number: 6023. Error Message: User deposit limit exceeded.",
   insufficientShares:
     "Error Code: InsufficientShares. Error Number: 6011. Error Message: Insufficient shares.",
+  directWithdrawDisabled:
+    " Error Code: DirectWithdrawDisabled. Error Number: 6026. Error Message: Direct withdraw is disabled.",
 };

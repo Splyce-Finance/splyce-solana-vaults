@@ -450,6 +450,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: kycVerifiedWhitelistedUserSharesAccountVaultOne,
           underlyingMint: underlyingMint,
           strategy: strategyOne,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([kycVerifiedWhitelistedUser])
@@ -507,6 +508,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: kycVerifiedWhitelistedUserSharesAccountVaultOne,
           underlyingMint: underlyingMint,
           strategy: strategyOne,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([kycVerifiedWhitelistedUser])
@@ -564,6 +566,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: kycVerifiedWhitelistedUserSharesAccountVaultOne,
           underlyingMint: underlyingMint,
           strategy: strategyOne,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([kycVerifiedWhitelistedUser])
@@ -717,6 +720,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: kycVerifiedWhitelistedUserSharesAccountVaultOne,
           underlyingMint: underlyingMint,
           strategy: strategy,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([kycVerifiedWhitelistedUser])
@@ -773,6 +777,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: kycVerifiedUserSharesAccountVaultOne,
           underlyingMint: underlyingMint,
           strategy: strategyOne,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([kycVerifiedUser])
@@ -829,6 +834,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: whitelistedUserSharesAccountVaultOne,
           underlyingMint: underlyingMint,
           strategy: strategyOne,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([whitelistedUser])
@@ -884,6 +890,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
         userSharesAccount: kycVerifiedWhitelistedUserSharesAccountVaultOne,
         underlyingMint: underlyingMint,
         strategy: strategyOne,
+        // @ts-ignore
         tokenProgram: token.TOKEN_PROGRAM_ID,
       })
       .signers([kycVerifiedWhitelistedUser])
@@ -1052,6 +1059,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
         userSharesAccount: userSharesAccount,
         underlyingMint: underlyingMint,
         strategy: strategy,
+        // @ts-ignore
         tokenProgram: token.TOKEN_PROGRAM_ID,
       })
       .signers([whitelistedUser])
@@ -1196,6 +1204,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
         userSharesAccount: userSharesAccount,
         underlyingMint: underlyingMint,
         strategy: strategy,
+        // @ts-ignore
         tokenProgram: token.TOKEN_PROGRAM_ID,
       })
       .signers([nonVerifiedUser])
@@ -1334,6 +1343,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: userSharesAccount,
           underlyingMint: underlyingMint,
           strategy: strategy,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([nonVerifiedUser])
@@ -1473,6 +1483,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: userSharesAccount,
           underlyingMint: underlyingMint,
           strategy: strategy,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([nonVerifiedUser])
@@ -1612,6 +1623,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: userSharesAccount,
           underlyingMint: underlyingMint,
           strategy: strategy,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([nonVerifiedUser])
@@ -1751,6 +1763,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
           userSharesAccount: userSharesAccount,
           underlyingMint: underlyingMint,
           strategy: strategy,
+          // @ts-ignore
           tokenProgram: token.TOKEN_PROGRAM_ID,
         })
         .signers([nonVerifiedUser])
@@ -1889,6 +1902,7 @@ describe("Vault User Operations: Direct Deposit Tests", () => {
         userSharesAccount: userSharesAccount,
         underlyingMint: underlyingMint,
         strategy: strategy,
+        // @ts-ignore
         tokenProgram: token.TOKEN_PROGRAM_ID,
       })
       .signers([nonVerifiedUser])
