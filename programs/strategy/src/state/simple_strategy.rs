@@ -8,8 +8,7 @@ use super::fee_data::*;
 use crate::error::ErrorCode;
 use crate::events::{StrategyDepositEvent, StrategyInitEvent, StrategyWithdrawEvent};
 use crate::utils::token;
-use crate::instructions::{Report, ReportProfit, ReportLoss, DeployFunds, FreeFunds, HarvestAndReport};
-use crate::constants::FEE_BPS;
+use crate::instructions::{ReportProfit, ReportLoss, DeployFunds, FreeFunds, HarvestAndReport};
 
 #[account()]
 #[derive(Default, Debug, InitSpace)]
@@ -106,7 +105,6 @@ impl Strategy for SimpleStrategy {
         Ok(())
     }
 
-    // remaining[0] - manager token account
     fn report_profit<'info>(&mut self, accounts: &ReportProfit<'info>, remaining: &[AccountInfo<'info>], profit: u64) -> Result<()> {
         if token::get_balance(&remaining[0].to_account_info())? < profit {
             return Err(ErrorCode::InsufficientFunds.into());
@@ -124,8 +122,6 @@ impl Strategy for SimpleStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        let old_total_assets = self.total_assets();
-
         let harvest_ctx = HarvestAndReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
@@ -134,19 +130,7 @@ impl Strategy for SimpleStrategy {
             token_program: accounts.token_program.clone(),
         };
 
-        let mut new_total_assets = self.harvest_and_report(&harvest_ctx, remaining)?;
-
-        if new_total_assets > old_total_assets {
-            let profit_gain = new_total_assets - old_total_assets;
-            let fee_data = self.fee_data();
-            if fee_data.performance_fee > 0 {
-                let fees = (profit_gain * fee_data.performance_fee) / FEE_BPS;
-                fee_data.fee_balance += fees;
-                new_total_assets -= fees;
-            }
-        }
-
-        self.set_total_assets(new_total_assets);
+        self.update_total_assets(&harvest_ctx, remaining)?;
 
         Ok(())
     }
@@ -170,8 +154,6 @@ impl Strategy for SimpleStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        let old_total_assets = self.total_assets();
-
         let harvest_ctx = HarvestAndReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
@@ -180,19 +162,7 @@ impl Strategy for SimpleStrategy {
             token_program: accounts.token_program.clone(),
         };
 
-        let mut new_total_assets = self.harvest_and_report(&harvest_ctx, remaining)?;
-
-        if new_total_assets > old_total_assets {
-            let profit_gain = new_total_assets - old_total_assets;
-            let fee_data = self.fee_data();
-            if fee_data.performance_fee > 0 {
-                let fees = (profit_gain * fee_data.performance_fee) / FEE_BPS;
-                fee_data.fee_balance += fees;
-                new_total_assets -= fees;
-            }
-        }
-
-        self.set_total_assets(new_total_assets);
+        self.update_total_assets(&harvest_ctx, remaining)?;
 
         Ok(())
     }

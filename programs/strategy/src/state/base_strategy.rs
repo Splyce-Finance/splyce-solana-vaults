@@ -62,8 +62,6 @@ pub trait Strategy:
     fn report_profit<'info>(&mut self, accounts: &ReportProfit<'info>, remaining: &[AccountInfo<'info>], profit: u64) -> Result<()>;
     fn report_loss<'info>(&mut self, accounts: &ReportLoss<'info>, remaining: &[AccountInfo<'info>], loss: u64) -> Result<()>;
     fn report<'info>(&mut self, accounts: &Report<'info>, remaining: &[AccountInfo<'info>]) -> Result<()> {
-        let old_total_assets = self.total_assets();
-
         let harvest_ctx = HarvestAndReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: accounts.underlying_token_account.clone(),
@@ -71,20 +69,23 @@ pub trait Strategy:
             signer: accounts.signer.clone(),
             token_program: accounts.token_program.clone(),
         };
-    
-        let mut new_total_assets = self.harvest_and_report(&harvest_ctx, remaining)?;
-    
+
+        self.update_total_assets(&harvest_ctx, remaining)
+    }
+
+    /// Helper function to update the total assets and process performance fees.
+    fn update_total_assets<'info>(&mut self, harvest_ctx: &HarvestAndReport<'info>, remaining: &[AccountInfo<'info>]) -> Result<()> {
+        let old_total_assets = self.total_assets();
+        let mut new_total_assets = self.harvest_and_report(harvest_ctx, remaining)?;
         if new_total_assets > old_total_assets {
             let profit = new_total_assets - old_total_assets;
             let fee_data = self.fee_data();
-    
             if fee_data.performance_fee > 0 {
                 let fees = (profit * fee_data.performance_fee) / FEE_BPS;
                 fee_data.fee_balance += fees;
                 new_total_assets -= fees;
             }
         }
-    
         self.set_total_assets(new_total_assets);
         Ok(())
     }
