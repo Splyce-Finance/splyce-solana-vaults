@@ -22,7 +22,7 @@ use crate::constants::{
     NO_EXPLICIT_SQRT_PRICE_LIMIT, 
     ORCA_ACCOUNTS_PER_SWAP,
 };
-use crate::instructions::{DeployFunds, FreeFunds, Report, ReportLoss, ReportProfit};
+use crate::instructions::{DeployFunds, FreeFunds, ReportLoss, ReportProfit};
 use crate::utils::{
     execute_swap::{SwapContext, SwapDirection},
     whirlpool
@@ -154,7 +154,7 @@ impl Strategy for OrcaStrategy {
 
     fn harvest_and_report<'info>(
         &mut self,
-        _accounts: &Report<'info>,
+        _dto: &HarvestReport<'info>,
         remaining: &[AccountInfo<'info>],
     ) -> Result<u64> {
         require!(
@@ -173,10 +173,9 @@ impl Strategy for OrcaStrategy {
 
         let new_total_assets = self.idle_underlying + self.total_invested;
 
-        // Emit event with total assets and timestamp
         emit!(HarvestAndReportDTFEvent {
             account_key: self.key(),
-            total_assets: new_total_assets, //basically total asset value in USDC which is the underlying token
+            total_assets: new_total_assets,
             timestamp: Clock::get()?.unix_timestamp,
         });
 
@@ -191,19 +190,6 @@ impl Strategy for OrcaStrategy {
         remaining: &[AccountInfo<'info>],
         amount: u64,
     ) -> Result<()> {
-        // we have to report on the current state of the strategy before freeing funds
-        self.report(
-            &Report {
-                strategy: accounts.strategy.clone(),
-                underlying_token_account: accounts.underlying_token_account.clone(),
-                underlying_mint: accounts.underlying_mint.clone(),
-                signer: accounts.signer.clone(),
-                token_program: accounts.token_program.clone(),
-            },
-            &[remaining[1].clone()],
-        )
-        .unwrap();
-
         require!(
             remaining.len() == ORCA_ACCOUNTS_PER_SWAP,
             OrcaStrategyErrorCode::NotEnoughAccounts
@@ -258,19 +244,6 @@ impl Strategy for OrcaStrategy {
         )
         .unwrap();
 
-        // Report current state to sync total_assets after swap
-        self.report(
-            &Report {
-                strategy: accounts.strategy.clone(),
-                underlying_token_account: accounts.underlying_token_account.clone(),
-                underlying_mint: accounts.underlying_mint.clone(),
-                signer: accounts.signer.clone(),
-                token_program: accounts.token_program.clone(),
-            },
-            &[remaining[1].clone()],
-        )
-        .unwrap();
-
         emit!(StrategyFreeFundsEvent {
             account_key: self.key(),
             amount,
@@ -308,19 +281,6 @@ impl Strategy for OrcaStrategy {
         remaining: &[AccountInfo<'info>],
         amount: u64,
     ) -> Result<()> {
-        // we have to report on the current state of the strategy before freeing funds
-        self.report(
-            &Report {
-                strategy: accounts.strategy.clone(),
-                underlying_token_account: accounts.underlying_token_account.clone(),
-                underlying_mint: accounts.underlying_mint.clone(),
-                signer: accounts.signer.clone(),
-                token_program: accounts.token_program.clone(),
-            },
-            &[remaining[1].clone()],
-        )
-        .unwrap();
-
         require!(
             remaining.len() == ORCA_ACCOUNTS_PER_SWAP,
             OrcaStrategyErrorCode::NotEnoughAccounts
@@ -377,19 +337,6 @@ impl Strategy for OrcaStrategy {
             .total_invested
             .checked_add(invested)
             .ok_or(OrcaStrategyErrorCode::MathError)?;
-
-        // Report current state to sync total_assets after swap
-        self.report(
-            &Report {
-                strategy: accounts.strategy.clone(),
-                underlying_token_account: accounts.underlying_token_account.clone(),
-                underlying_mint: accounts.underlying_mint.clone(),
-                signer: accounts.signer.clone(),
-                token_program: accounts.token_program.clone(),
-            },
-            &[remaining[1].clone()],
-        )
-        .unwrap();
 
         emit!(StrategyDeployFundsEvent {
             account_key: self.key(),

@@ -7,7 +7,7 @@ use super::fee_data::*;
 use crate::error::ErrorCode;
 use crate::events::{StrategyDepositEvent, StrategyInitEvent, StrategyWithdrawEvent};
 use crate::utils::token;
-use crate::instructions::{Report, ReportProfit, ReportLoss, DeployFunds, FreeFunds};
+use crate::instructions::{ReportProfit, ReportLoss, DeployFunds, FreeFunds};
 
 #[account]
 #[derive(Default, Debug, InitSpace)]
@@ -119,21 +119,20 @@ impl Strategy for TradeFintechStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        self.report(
-            &mut Report {
+        let dto = HarvestReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
-            token_program: accounts.token_program.clone(),
             signer: accounts.signer.clone(),
-            }, 
-            &remaining
-        )?;
+            token_program: accounts.token_program.clone(),
+        };
+
+        self.update_total_assets(&dto, remaining)?;
 
         Ok(())
     }
 
-    fn report_loss<'info>(&mut self, accounts: &ReportLoss<'info>, remaining: &[AccountInfo<'info>],  loss: u64) -> Result<()> {
+    fn report_loss<'info>(&mut self, accounts: &ReportLoss<'info>, remaining: &[AccountInfo<'info>], loss: u64) -> Result<()> {
         if self.lock_period_ends > Clock::get()?.unix_timestamp {
             return Err(TradeFintechErrorCode::LockPeriodNotEnded.into());
         }
@@ -159,25 +158,24 @@ impl Strategy for TradeFintechStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        self.report(
-            &mut Report {
+        let dto = HarvestReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
-            token_program: accounts.token_program.clone(),
             signer: accounts.signer.clone(),
-            }, 
-            &remaining
-        )?;
+            token_program: accounts.token_program.clone(),
+        };
+
+        self.update_total_assets(&dto, remaining)?;
 
         Ok(())
     }
 
-    fn harvest_and_report<'info>(&mut self, accounts: &Report<'info>, _remaining: &[AccountInfo<'info>]) -> Result<u64> {
-        if accounts.underlying_token_account.key() != self.underlying_token_acc {
+    fn harvest_and_report<'info>(&mut self, dto: &HarvestReport<'info>, _remaining: &[AccountInfo<'info>]) -> Result<u64> {
+        if dto.underlying_token_account.key() != self.underlying_token_acc {
             return Err(ErrorCode::InvalidAccount.into());
         }
-        let new_total_assets = accounts.underlying_token_account.amount;
+        let new_total_assets = dto.underlying_token_account.amount;
         Ok(new_total_assets)
     }
 

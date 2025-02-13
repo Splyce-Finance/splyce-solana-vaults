@@ -61,17 +61,19 @@ pub mod tokenized_vault {
     pub fn request_withdraw<'info>(
         ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
         amount: u64, 
-        max_loss: u64
+        max_loss: u64,
+        priority_fee: u64
     ) -> Result<()> {
-        handle_request_withdraw(ctx, amount, max_loss)
+        handle_request_withdraw(ctx, amount, max_loss, priority_fee)
     }
 
     pub fn request_redeem<'info>(
         ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
         shares: u64, 
-        max_loss: u64
+        max_loss: u64,
+        priority_fee: u64
     ) -> Result<()> {
-        handle_request_redeem(ctx, shares, max_loss)
+        handle_request_redeem(ctx, shares, max_loss, priority_fee)
     }
 
     pub fn cancel_withdrawal_request(ctx: Context<CancelWithdrawalRequest>) -> Result<()> {

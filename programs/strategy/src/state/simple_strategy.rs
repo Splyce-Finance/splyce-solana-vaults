@@ -8,7 +8,7 @@ use super::fee_data::*;
 use crate::error::ErrorCode;
 use crate::events::{StrategyDepositEvent, StrategyInitEvent, StrategyWithdrawEvent};
 use crate::utils::token;
-use crate::instructions::{Report, ReportProfit, ReportLoss, DeployFunds, FreeFunds};
+use crate::instructions::{ReportProfit, ReportLoss, DeployFunds, FreeFunds};
 
 #[account()]
 #[derive(Default, Debug, InitSpace)]
@@ -105,7 +105,6 @@ impl Strategy for SimpleStrategy {
         Ok(())
     }
 
-    // remaining[0] - manager token account
     fn report_profit<'info>(&mut self, accounts: &ReportProfit<'info>, remaining: &[AccountInfo<'info>], profit: u64) -> Result<()> {
         if token::get_balance(&remaining[0].to_account_info())? < profit {
             return Err(ErrorCode::InsufficientFunds.into());
@@ -123,16 +122,15 @@ impl Strategy for SimpleStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        self.report(
-            &mut Report {
+        let dto = HarvestReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
-            token_program: accounts.token_program.clone(),
             signer: accounts.signer.clone(),
-            }, 
-            &remaining
-        )?;
+            token_program: accounts.token_program.clone(),
+        };
+
+        self.update_total_assets(&dto, remaining)?;
 
         Ok(())
     }
@@ -156,16 +154,15 @@ impl Strategy for SimpleStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        self.report(
-            &mut Report {
+        let dto = HarvestReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
-            token_program: accounts.token_program.clone(),
             signer: accounts.signer.clone(),
-            }, 
-            &remaining
-        )?;
+            token_program: accounts.token_program.clone(),
+        };
+
+        self.update_total_assets(&dto, remaining)?;
 
         Ok(())
     }
@@ -190,11 +187,11 @@ impl Strategy for SimpleStrategy {
         Ok(())
     }
 
-    fn harvest_and_report<'info>(&mut self, accounts: &Report<'info>, _remining: &[AccountInfo<'info>]) -> Result<u64> {
-        if accounts.underlying_token_account.key() != self.underlying_token_acc {
+    fn harvest_and_report<'info>(&mut self, dto: &HarvestReport<'info>, _remaining: &[AccountInfo<'info>]) -> Result<u64> {
+        if dto.underlying_token_account.key() != self.underlying_token_acc {
             return Err(ErrorCode::InvalidAccount.into());
         }
-        let idle_assets = accounts.underlying_token_account.amount;
+        let idle_assets = dto.underlying_token_account.amount;
         Ok(idle_assets + self.total_invested)
     }
 

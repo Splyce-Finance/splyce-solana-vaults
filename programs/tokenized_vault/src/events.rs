@@ -21,9 +21,12 @@ pub struct VaultInitEvent {
     pub accountant: Pubkey,
     pub share_token: TokenData,
     pub deposit_limit: u64,
+    pub user_deposit_limit: u64,
     pub min_user_deposit: u64,
     pub kyc_verified_only: bool,
     pub direct_deposit_enabled: bool,
+    pub direct_withdraw_enabled: bool,
+    pub minimum_total_idle: u64,
     pub whitelisted_only: bool,
     pub profit_max_unlock_time: u64,
 }
@@ -125,6 +128,7 @@ pub struct WithdrawalRequestedEvent {
     pub fee_shares: u64,
     pub index: u64,
     pub timestamp: i64,
+    pub priority_fee: u64,
 }
 
 #[event]

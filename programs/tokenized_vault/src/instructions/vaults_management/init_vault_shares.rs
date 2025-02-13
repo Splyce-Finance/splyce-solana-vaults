@@ -154,9 +154,12 @@ pub fn handle_init_vault_shares(ctx: Context<InitVaultShares>, _index: u64, conf
         accountant: vault.accountant,
         share_token,
         deposit_limit: vault.deposit_limit,
+        user_deposit_limit: vault.user_deposit_limit,
         min_user_deposit: vault.min_user_deposit,
         kyc_verified_only: vault.kyc_verified_only,
         direct_deposit_enabled: vault.direct_deposit_enabled,
+        direct_withdraw_enabled: vault.direct_withdraw_enabled,
+        minimum_total_idle: vault.minimum_total_idle,
         whitelisted_only: vault.whitelisted_only,
         profit_max_unlock_time: vault.profit_max_unlock_time,
     });

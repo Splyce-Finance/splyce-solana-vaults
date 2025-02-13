@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use anchor_spl::{
     token::Token,
     token_interface::{Mint, TokenAccount}
@@ -64,23 +65,25 @@ pub fn handle_request_withdraw<'info>(
     ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
     amount: u64, 
     max_loss: u64,
+    priority_fee: u64,
 ) -> Result<()> {
     let redemtion_fee = accountant::redeem(&ctx.accounts.accountant, amount)?;
     let assets_to_withdraw = amount - redemtion_fee;
 
     let fee_shares = ctx.accounts.vault.load()?.convert_to_shares(redemtion_fee);
     let shares_to_burn = ctx.accounts.vault.load()?.convert_to_shares(assets_to_withdraw);
-    handle_internal(ctx, assets_to_withdraw, shares_to_burn, fee_shares, max_loss)
+    handle_internal(ctx, assets_to_withdraw, shares_to_burn, fee_shares, max_loss, priority_fee)
 }
 
 pub fn handle_request_redeem<'info>(
     ctx: Context<'_, '_, '_, 'info, RequestWithdraw<'info>>, 
     shares: u64, 
     max_loss: u64,
+    priority_fee: u64,
 ) -> Result<()> {
     let redemtion_fee_shares = accountant::redeem(&ctx.accounts.accountant, shares)?;
     let amount = ctx.accounts.vault.load()?.convert_to_underlying(shares-redemtion_fee_shares);
-    handle_internal(ctx, amount, shares-redemtion_fee_shares, redemtion_fee_shares, max_loss)
+    handle_internal(ctx, amount, shares-redemtion_fee_shares, redemtion_fee_shares, max_loss, priority_fee)
 }
 
 fn handle_internal<'info>(
@@ -89,6 +92,7 @@ fn handle_internal<'info>(
     shares_to_burn: u64,
     fee_shares: u64,
     max_loss: u64,
+    priority_fee: u64,
 ) -> Result<()> {
 
     let vault = ctx.accounts.vault.load()?;
@@ -102,6 +106,31 @@ fn handle_internal<'info>(
 
     if assets == 0 || shares_to_burn == 0 {
         return Err(ErrorCode::ZeroValue.into());
+    }
+
+    if priority_fee > 0 {
+        if ctx.accounts.user.lamports() < priority_fee {
+            return Err(ErrorCode::InsufficientFunds.into());
+        }
+        
+        let from = ctx.accounts.user.to_account_info();
+        let to = ctx.accounts.withdraw_request.to_account_info();
+        let transfer_ix =  solana_program::system_instruction::transfer(
+            &from.key(),
+            &to.key(),
+            priority_fee,
+        );
+
+        // Execute the transaction (send SOL)
+        msg!("Transferring {} SOL", priority_fee);
+        solana_program::program::invoke(
+            &transfer_ix,
+            &[
+                from.to_account_info(),
+                to.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+        )?;
     }
 
     ctx.accounts.withdraw_request.init(
@@ -137,6 +166,7 @@ fn handle_internal<'info>(
         fee_shares,
         index: ctx.accounts.withdraw_request.index,
         timestamp: Clock::get()?.unix_timestamp,
+        priority_fee,
     });
 
     Ok(())
