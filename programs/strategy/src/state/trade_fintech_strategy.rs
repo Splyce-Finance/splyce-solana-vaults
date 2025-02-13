@@ -7,7 +7,7 @@ use super::fee_data::*;
 use crate::error::ErrorCode;
 use crate::events::{StrategyDepositEvent, StrategyInitEvent, StrategyWithdrawEvent};
 use crate::utils::token;
-use crate::instructions::{ReportProfit, ReportLoss, DeployFunds, FreeFunds, HarvestAndReport};
+use crate::instructions::{ReportProfit, ReportLoss, DeployFunds, FreeFunds};
 
 #[account]
 #[derive(Default, Debug, InitSpace)]
@@ -119,7 +119,7 @@ impl Strategy for TradeFintechStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        let harvest_ctx = HarvestAndReport {
+        let dto = HarvestReportDTO {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
@@ -127,7 +127,7 @@ impl Strategy for TradeFintechStrategy {
             token_program: accounts.token_program.clone(),
         };
 
-        self.update_total_assets(&harvest_ctx, remaining)?;
+        self.update_total_assets(&dto, remaining)?;
 
         Ok(())
     }
@@ -158,7 +158,7 @@ impl Strategy for TradeFintechStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        let harvest_ctx = HarvestAndReport {
+        let dto = HarvestReportDTO {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
@@ -166,16 +166,16 @@ impl Strategy for TradeFintechStrategy {
             token_program: accounts.token_program.clone(),
         };
 
-        self.update_total_assets(&harvest_ctx, remaining)?;
+        self.update_total_assets(&dto, remaining)?;
 
         Ok(())
     }
 
-    fn harvest_and_report<'info>(&mut self, accounts: &HarvestAndReport<'info>, _remaining: &[AccountInfo<'info>]) -> Result<u64> {
-        if accounts.underlying_token_account.key() != self.underlying_token_acc {
+    fn harvest_and_report<'info>(&mut self, dto: &HarvestReportDTO<'info>, _remaining: &[AccountInfo<'info>]) -> Result<u64> {
+        if dto.underlying_token_account.key() != self.underlying_token_acc {
             return Err(ErrorCode::InvalidAccount.into());
         }
-        let new_total_assets = accounts.underlying_token_account.amount;
+        let new_total_assets = dto.underlying_token_account.amount;
         Ok(new_total_assets)
     }
 

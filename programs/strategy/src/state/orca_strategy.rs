@@ -22,7 +22,7 @@ use crate::constants::{
     NO_EXPLICIT_SQRT_PRICE_LIMIT, 
     ORCA_ACCOUNTS_PER_SWAP,
 };
-use crate::instructions::{DeployFunds, FreeFunds, ReportLoss, ReportProfit, HarvestAndReport};
+use crate::instructions::{DeployFunds, FreeFunds, ReportLoss, ReportProfit};
 use crate::utils::{
     execute_swap::{SwapContext, SwapDirection},
     whirlpool
@@ -154,7 +154,7 @@ impl Strategy for OrcaStrategy {
 
     fn harvest_and_report<'info>(
         &mut self,
-        _accounts: &HarvestAndReport<'info>,
+        _dto: &HarvestReportDTO<'info>,
         remaining: &[AccountInfo<'info>],
     ) -> Result<u64> {
         require!(
@@ -173,10 +173,9 @@ impl Strategy for OrcaStrategy {
 
         let new_total_assets = self.idle_underlying + self.total_invested;
 
-        // Emit event with total assets and timestamp
         emit!(HarvestAndReportDTFEvent {
             account_key: self.key(),
-            total_assets: new_total_assets, //basically total asset value in USDC which is the underlying token
+            total_assets: new_total_assets,
             timestamp: Clock::get()?.unix_timestamp,
         });
 
