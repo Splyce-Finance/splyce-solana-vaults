@@ -146,9 +146,9 @@
       "whirlpools_config": "2LecshUwdy9xi7meFgHtFJQNSKk4KdTrcpvaB56dP2NQ"
     },
     "shares_config": {
-      "name": "BTC + ETH + SOL",
-      "symbol": "CRYPTO3T",
-      "uri": "https://github.com/Splyce-Finance/splyce-assets/blob/master/solana/CRYPTO3T.txt"
+      "name": "Sol Magnificent 3",
+      "symbol": "SOLMAG3",
+      "uri": "https://app.ardrive.io/#/file/a252d3b6-1ea7-4ab0-b0ba-d07e48f9f36a/view"
     },
     "mints": {
       "underlying": {
@@ -189,7 +189,7 @@
           },
           "investment_config": {
             "a_to_b_for_purchase": false,
-            "assigned_weight_bps": 5000
+            "assigned_weight_bps": 3334
           }
         },
         "whETH": {
@@ -224,7 +224,7 @@
           },
           "investment_config": {
             "a_to_b_for_purchase": false,
-            "assigned_weight_bps": 2500
+            "assigned_weight_bps": 3333
           }
         },
         "SOL": {
@@ -259,7 +259,7 @@
           },
           "investment_config": {
             "a_to_b_for_purchase": false,
-            "assigned_weight_bps": 2500
+            "assigned_weight_bps": 3333
           }
         }
       }
@@ -268,14 +268,14 @@
       "report_bot": "JE1GQhjSiam5TckzWcUu6CHERM3ELfmsVcfd6VJvj6wv"
     },
     "vault_config": {
-      "deposit_limit": "20000000000",
+      "deposit_limit": "10000000000",
       "min_user_deposit": "100000000",
-      "user_deposit_limit": "1000000000",
-      "profit_max_unlock_time": "31536000",
+      "user_deposit_limit": "500000000",
+      "profit_max_unlock_time": "0",
       "kyc_verified_only": false,
       "direct_deposit_enabled": false,
       "whitelisted_only": false,
-      "direct_withdraw_enabled": false
+      "direct_withdraw_enabled": false,
     }
   }
 }
