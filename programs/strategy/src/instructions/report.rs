@@ -26,7 +26,7 @@ pub struct Report<'info> {
         seeds = [
             USER_ROLE_SEED.as_bytes(),
             signer.key().as_ref(),
-            Role::StrategiesManager.to_seed().as_ref()
+            Role::ReportingManager.to_seed().as_ref()
         ],
         bump,
         seeds::program = access_control.key()
