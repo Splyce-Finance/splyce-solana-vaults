@@ -154,7 +154,7 @@ impl Strategy for OrcaStrategy {
 
     fn harvest_and_report<'info>(
         &mut self,
-        _dto: &HarvestReportDTO<'info>,
+        _dto: &HarvestReport<'info>,
         remaining: &[AccountInfo<'info>],
     ) -> Result<u64> {
         require!(

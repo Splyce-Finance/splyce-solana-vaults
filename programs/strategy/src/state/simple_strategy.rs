@@ -122,7 +122,7 @@ impl Strategy for SimpleStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        let dto = HarvestReportDTO {
+        let dto = HarvestReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
@@ -154,7 +154,7 @@ impl Strategy for SimpleStrategy {
         let underlying_token_account = &mut accounts.underlying_token_account.clone();
         underlying_token_account.reload()?;
 
-        let dto = HarvestReportDTO {
+        let dto = HarvestReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
@@ -187,7 +187,7 @@ impl Strategy for SimpleStrategy {
         Ok(())
     }
 
-    fn harvest_and_report<'info>(&mut self, dto: &HarvestReportDTO<'info>, _remaining: &[AccountInfo<'info>]) -> Result<u64> {
+    fn harvest_and_report<'info>(&mut self, dto: &HarvestReport<'info>, _remaining: &[AccountInfo<'info>]) -> Result<u64> {
         if dto.underlying_token_account.key() != self.underlying_token_acc {
             return Err(ErrorCode::InvalidAccount.into());
         }

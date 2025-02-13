@@ -5,7 +5,7 @@ use super::*;
 use crate::constants::FEE_BPS;
 use crate::instructions::{Report, ReportProfit, ReportLoss, DeployFunds, FreeFunds};
 
-pub struct HarvestReportDTO<'info> {
+pub struct HarvestReport<'info> {
     pub strategy: UncheckedAccount<'info>,
     pub underlying_token_account: InterfaceAccount<'info, TokenAccount>,
     pub underlying_mint: InterfaceAccount<'info, Mint>,
@@ -62,7 +62,7 @@ pub trait Strategy:
     fn deposit(&mut self, amount: u64) -> Result<()>;
     fn withdraw(&mut self, amount: u64) -> Result<()>;
     fn withdraw_fees(&mut self, amount: u64) -> Result<()>;
-    fn harvest_and_report<'info>(&mut self, dto: &HarvestReportDTO<'info>, remaining: &[AccountInfo<'info>]) -> Result<u64>;
+    fn harvest_and_report<'info>(&mut self, dto: &HarvestReport<'info>, remaining: &[AccountInfo<'info>]) -> Result<u64>;
     fn deploy_funds<'info>(&mut self, accounts: &DeployFunds<'info>, remaining: &[AccountInfo<'info>], amount: u64) -> Result<()>;
     fn free_funds<'info>(&mut self, accounts: &FreeFunds<'info>, remaining: &[AccountInfo<'info>], amount: u64) -> Result<()>;
     fn set_total_assets(&mut self, total_assets: u64);
@@ -70,7 +70,7 @@ pub trait Strategy:
     fn report_profit<'info>(&mut self, accounts: &ReportProfit<'info>, remaining: &[AccountInfo<'info>], profit: u64) -> Result<()>;
     fn report_loss<'info>(&mut self, accounts: &ReportLoss<'info>, remaining: &[AccountInfo<'info>], loss: u64) -> Result<()>;
     fn report<'info>(&mut self, accounts: &Report<'info>, remaining: &[AccountInfo<'info>]) -> Result<()> {
-        let dto = HarvestReportDTO {
+        let dto = HarvestReport {
             strategy: accounts.strategy.clone(),
             underlying_token_account: accounts.underlying_token_account.clone(),
             underlying_mint: accounts.underlying_mint.clone(),
@@ -81,7 +81,7 @@ pub trait Strategy:
     }
 
     /// Helper function to update the total assets and process performance fees.
-    fn update_total_assets<'info>(&mut self, dto: &HarvestReportDTO<'info>, remaining: &[AccountInfo<'info>]) -> Result<()> {
+    fn update_total_assets<'info>(&mut self, dto: &HarvestReport<'info>, remaining: &[AccountInfo<'info>]) -> Result<()> {
         let old_total_assets = self.total_assets();
         let mut new_total_assets = self.harvest_and_report(dto, remaining)?;
         if new_total_assets > old_total_assets {
