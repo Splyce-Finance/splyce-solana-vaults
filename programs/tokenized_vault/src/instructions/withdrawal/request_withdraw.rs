@@ -104,8 +104,14 @@ fn handle_internal<'info>(
         return Err(ErrorCode::WithdrawRequestsDisabled.into());
     }
 
+    let shares_to_lock = shares_to_burn + fee_shares;
+
     if assets == 0 || shares_to_burn == 0 {
         return Err(ErrorCode::ZeroValue.into());
+    }
+
+    if  shares_to_lock > ctx.accounts.user_shares_account.amount {
+        return Err(ErrorCode::InsufficientShares.into());
     }
 
     if priority_fee > 0 {
@@ -139,7 +145,7 @@ fn handle_internal<'info>(
         ctx.accounts.user.key(),
         ctx.accounts.user_token_account.key(),
         ctx.accounts.user_shares_account.key(),
-        shares_to_burn, 
+        shares_to_lock, 
         max_loss,
         fee_shares,
         ctx.accounts.config.next_withdraw_request_index
@@ -153,14 +159,14 @@ fn handle_internal<'info>(
         ctx.accounts.withdraw_pool_token_account.to_account_info(),
         ctx.accounts.user.to_account_info(),
         &ctx.accounts.shares_mint,
-        shares_to_burn,
+        shares_to_lock,
     )?;
 
     emit!(WithdrawalRequestedEvent {
         vault: ctx.accounts.withdraw_request.vault,
         user: ctx.accounts.withdraw_request.user,
         amount: assets,
-        shares: shares_to_burn,
+        shares: shares_to_lock,
         recipient: ctx.accounts.withdraw_request.recipient,
         max_loss,
         fee_shares,
