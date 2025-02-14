@@ -15,7 +15,9 @@ dotenv.config();
 
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses.json');
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'addresses.json');
-const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses2.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses3.json');
 
 
 
@@ -63,7 +65,7 @@ async function main() {
     
     const config = await vaultProgram.account.config.fetch(configPDA);
     // const newVaultIndex = config.nextVaultIndex.toNumber();
-    const newVaultIndex = 1;
+    const newVaultIndex = 1; //second vault, for third vault use 2
 
     console.log("Creating new vault with index:", newVaultIndex);
 

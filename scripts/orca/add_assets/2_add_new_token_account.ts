@@ -74,34 +74,21 @@ async function main() {
 
     // Define the fixed order of assets for mainnet with their corresponding indices
     // strategy indices for vaultIndex = 1
-    // const assets = [
-    //   { name: "wBTC", index: 3 },
-    //   { name: "whETH", index: 4 },
-    //   { name: "SOL", index: 5 }
-    // ];
-
-    // strategy indices for vaultIndex = 2
-    // const assets = [
-    //   { name: "wBTC", index: 7 },
-    //   { name: "whETH", index: 13 },
-    //   { name: "SOL", index: 9 }
-    // ];
-
-    // // strategy indices for vaultIndex = 3
-    // const assets = [
-    //   { name: "BONK", index: 10 },
-    //   { name: "PENGU", index: 11 },
-    //   { name: "WIF", index: 12 }
-    // ];
-    
     const assets = [
-      { name: "SOL", index: 3 },
-      { name: "USDT", index: 4 },
-      { name: "SAMO", index: 5 }
+      { name: "wBTC", index: 2 },
+      { name: "whETH", index: 3 },
+      { name: "SOL", index: 4 }
     ];
 
+    // strategy indices for vaultIndex = 2
+    //     const assets = [
+    //   { name: "BONK", index: 5 },
+    //   { name: "PENGU", index: 6 },
+    //   { name: "WIF", index: 7 }
+    // ];
+
     // Specify which asset to initialize
-    const assetToInitialize = assets[2]; // Change index to 0, 1, or 2 to select wBTC, whETH, or SOL
+    const assetToInitialize = assets[2]; // Change index
     const assetName = assetToInitialize.name;
     const strategyIndex = assetToInitialize.index;
     

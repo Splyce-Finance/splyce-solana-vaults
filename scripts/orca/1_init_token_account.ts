@@ -48,8 +48,8 @@ async function main() {
     const vaultProgram = anchor.workspace.TokenizedVault as Program<TokenizedVault>;
 
     // Get all configured assets for the environment
-    const assets = ["BONK", "PENGU", "WIF"]; // Define fixed order of assets
-    const assetIndexToInitialize = 2; // 0 for BONK, 1 for PENGU, 2 for WIF
+    const assets = ["JitoSOL", "USDY"]; // Define the fixed order of assets
+    const assetIndexToInitialize = 0; // 0 for JitoSOL, 1 for USDY
     const assetName = assets[assetIndexToInitialize];
 
     console.log(`Initializing token account for ${assetName} (index: ${assetIndexToInitialize})`);

@@ -16,7 +16,9 @@ dotenv.config();
 
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses.json');
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'addresses.json');
-const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses2.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses3.json');
 
 const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
 const ENV = process.env.CLUSTER || 'devnet';
@@ -109,34 +111,21 @@ async function main() {
 
     // Define the fixed order of assets for mainnet with their corresponding indices
     // strategy indices for vaultIndex = 1
-    // const assets = [
-    //   { name: "wBTC", index: 3 },
-    //   { name: "whETH", index: 4 },
-    //   { name: "SOL", index: 5 }
-    // ];
+    const assets = [
+      { name: "wBTC", index: 2 },
+      { name: "whETH", index: 3 },
+      { name: "SOL", index: 4 }
+    ];
 
     // strategy indices for vaultIndex = 2
     //     const assets = [
-    //   { name: "wBTC", index: 7 },
-    //   { name: "whETH", index: 13 },
-    //   { name: "SOL", index: 9 }
+    //   { name: "BONK", index: 5 },
+    //   { name: "PENGU", index: 6 },
+    //   { name: "WIF", index: 7 }
     // ];
 
-    // strategy indices for vaultIndex = 3
-    // const assets = [
-    //   { name: "BONK", index: 10 },
-    //   { name: "PENGU", index: 11 },
-    //   { name: "WIF", index: 12 }
-    // ];
-
-    // strategy indices for vaultIndex = 1
-     const assets = [
-      { name: "SOL", index: 3 },
-      { name: "USDT", index: 4 },
-      { name: "SAMO", index: 5 }
-    ];
     // Specify which asset to initialize
-    const assetToInitialize = assets[2]; // Change index to 0, 1, or 2 to select wBTC, whETH, or SOL
+    const assetToInitialize = assets[0]; // Change index to 0, 1, or 2 to select wBTC, whETH, or SOL
     const assetName = assetToInitialize.name;
     const strategyIndex = assetToInitialize.index;
     
@@ -149,8 +138,8 @@ async function main() {
     }
 
     const strategyConfig = new OrcaStrategyConfig({
-      depositLimit: new BN(1_000_000_000),
-      performanceFee: new BN(50),
+      depositLimit: new BN(2_000_000_000),
+      performanceFee: new BN(0),
       feeManager: admin.publicKey,
       whirlpoolId: new PublicKey(CONFIG.mints.assets[assetName].pool.id),
       assetMint: new PublicKey(CONFIG.mints.assets[assetName].address),

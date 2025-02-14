@@ -319,7 +319,7 @@ async function main() {
       // console.log("Config account initialized");
 
     // Simplify the config fetching logic for first vault
-    const vaultIndex = 1; // second vault
+    const vaultIndex = 0; // first vault
     console.log("Using Vault Index:", vaultIndex);
 
     let vault = anchor.web3.PublicKey.findProgramAddressSync(
@@ -450,11 +450,11 @@ async function main() {
     //   .rpc();
     // console.log("Strategy Program Config initialized.");
 
-    // 12. Define Strategy Configuration
-    const assets = ["BONK", "PENGU", "WIF"]; // Define the fixed order of assets
+    // 12. Define Strategy Configuration, run this for each asset in each vault
+    const assets = ["JitoSOL", "USDY"]; // Define the fixed order of assets
     
     // Specify which asset to initialize by index
-    const assetIndexToInitialize = 2; // 0 for BONK, 1 for PENGU, 2 for WIF
+    const assetIndexToInitialize = 0; // 0 for JitoSOL, 1 for USDY
     const assetName = assets[assetIndexToInitialize];
     
     console.log(`Initializing strategy for ${assetName} (index: ${assetIndexToInitialize})...`);
@@ -466,8 +466,9 @@ async function main() {
     }
 
     const strategyConfig = new OrcaStrategyConfig({
-      depositLimit: new BN(1_000_000_000),
-      performanceFee: new BN(50),
+      depositLimit: new BN(2_000_000_000),
+      performanceFee: new BN(0
+      ),
       feeManager: admin.publicKey,
       whirlpoolId: new PublicKey(CONFIG.mints.assets[assetName].pool.id),
       assetMint: new PublicKey(CONFIG.mints.assets[assetName].address),
@@ -500,7 +501,7 @@ async function main() {
     // console.log(`Strategy ${assetIndexToInitialize} initialized`);
 
     // Add Strategy to Vault
-    // await vaultProgram.methods.addStrategy(new BN(20000000000))
+    // await vaultProgram.methods.addStrategy(new BN(200000000000))
     //   .accounts({
     //     vault,
     //     strategy,

@@ -31,7 +31,7 @@ async function main() {
     const secretKey = Uint8Array.from(JSON.parse(secretKeyString));
     const admin = anchor.web3.Keypair.fromSecretKey(secretKey);
     console.log("Admin:", admin.publicKey.toBase58());
-    const vaultIndex = 3;
+    const vaultIndex = 0; //change to 0, 1, 2
     // Derive vault PDA
     const [vault] = PublicKey.findProgramAddressSync(
       [
