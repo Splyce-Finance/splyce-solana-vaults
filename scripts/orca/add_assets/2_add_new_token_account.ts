@@ -13,7 +13,9 @@ dotenv.config();
 
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses.json');
 // const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'addresses.json');
-const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'share_price_test.json');
+const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses2.json');
+// const ADDRESSES_FILE = path.join(__dirname, '..', 'deployment_addresses', 'add_addresses3.json');
 
 const ADDRESSES = JSON.parse(fs.readFileSync(ADDRESSES_FILE, 'utf8'));
 const ENV = process.env.CLUSTER || 'devnet';
